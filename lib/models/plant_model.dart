@@ -99,6 +99,34 @@ class UserPlant {
     this.sessionCount = 0,
   });
 
+  factory UserPlant.fromMap(Map<String, dynamic> data) {
+    return UserPlant(
+      id: data['id'] ?? data['plantTypeId'] ?? '',
+      plantTypeId: data['plantTypeId'] ?? data['id'] ?? '',
+      growthXP: data['growthXP'] ?? 0,
+      growthStage: data['growthStage'] ?? 0,
+      unlockedAt: data['unlockedAt'] != null
+          ? DateTime.tryParse(data['unlockedAt'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      lastUpdated: data['lastUpdated'] != null
+          ? DateTime.tryParse(data['lastUpdated'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      sessionCount: data['sessionCount'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'plantTypeId': plantTypeId,
+      'growthXP': growthXP,
+      'growthStage': growthStage,
+      'unlockedAt': unlockedAt.toIso8601String(),
+      'lastUpdated': lastUpdated.toIso8601String(),
+      'sessionCount': sessionCount,
+    };
+  }
+
   factory UserPlant.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return UserPlant(

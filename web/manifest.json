@@ -1,0 +1,11 @@
+{
+  "name": "FocusBloom",
+  "short_name": "FocusBloom",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#2D6A4F",
+  "theme_color": "#2D6A4F",
+  "description": "FocusBloom - Gamified Focus and Productivity App",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}

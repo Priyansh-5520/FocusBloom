@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/user_data_provider.dart';
-import '../../providers/focus_timer_provider.dart';
 import '../../services/level_service.dart';
 import '../../constants/plant_data.dart';
 import '../../widgets/plant/plant_widget.dart';
-import '../main/main_scaffold.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -27,7 +24,30 @@ class HomeScreen extends StatelessWidget {
     final user = auth.userModel ?? userData.user;
 
     if (user == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      if (!auth.isLoading && !auth.isAuthenticated) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            Navigator.of(context).pushReplacementNamed('/login');
+          }
+        });
+      } else if (auth.isAuthenticated && !userData.isLoading) {
+        final uid = auth.firebaseUser?.uid ?? auth.userModel?.uid;
+        if (uid != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              context.read<UserDataProvider>().loadUserData(uid);
+            }
+          });
+        }
+      }
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation(AppColors.primaryLight),
+          ),
+        ),
+      );
     }
 
     final totalXP = user.totalXP;
@@ -40,9 +60,9 @@ class HomeScreen extends StatelessWidget {
     final dailyGoal = user.dailyGoalMinutes;
     final goalProgress = dailyGoal > 0 ? (todayMinutes / dailyGoal).clamp(0.0, 1.0) : 0.0;
 
-    // Pick the main plant to display
+    // Pick the main tree to display
     final plants = userData.plants;
-    final mainPlantTypeId = plants.isNotEmpty ? plants.first.plantTypeId : 'focus_fern';
+    final mainPlantTypeId = plants.isNotEmpty ? plants.first.plantTypeId : 'oak';
     final mainPlantType = PlantData.getById(mainPlantTypeId);
 
     return Scaffold(
@@ -67,8 +87,8 @@ class HomeScreen extends StatelessWidget {
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  Text(
-                    'Your focus is growing',
+                  const Text(
+                    'Your forest is flourishing',
                     style: TextStyle(
                       fontFamily: 'Nunito',
                       fontSize: 12,
@@ -83,8 +103,9 @@ class HomeScreen extends StatelessWidget {
                   margin: const EdgeInsets.only(right: 16),
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppColors.secondaryContainer,
+                    color: AppColors.surface,
                     borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.surfaceBorder),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -97,7 +118,7 @@ class HomeScreen extends StatelessWidget {
                           fontFamily: 'Nunito',
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.secondaryDark,
+                          color: AppColors.secondary,
                         ),
                       ),
                     ],
@@ -130,7 +151,7 @@ class HomeScreen extends StatelessWidget {
                                 fontFamily: 'Nunito',
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
-                                color: Colors.white,
+                                color: AppColors.textOnPrimary,
                               ),
                             ),
                           ),
@@ -143,10 +164,22 @@ class HomeScreen extends StatelessWidget {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text('Level $level', style: Theme.of(context).textTheme.titleSmall),
+                                  Text(
+                                    'Level $level',
+                                    style: const TextStyle(
+                                      fontFamily: 'Nunito',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
                                   Text(
                                     '$currentLevelXP / $nextLevelXP XP',
-                                    style: Theme.of(context).textTheme.bodySmall,
+                                    style: const TextStyle(
+                                      fontFamily: 'Nunito',
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -156,7 +189,7 @@ class HomeScreen extends StatelessWidget {
                                 child: LinearProgressIndicator(
                                   value: levelProgress,
                                   minHeight: 8,
-                                  backgroundColor: AppColors.primaryContainer,
+                                  backgroundColor: AppColors.surfaceVariant,
                                   valueColor: const AlwaysStoppedAnimation(AppColors.primary),
                                 ),
                               ),
@@ -212,13 +245,23 @@ class HomeScreen extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Daily Goal', style: Theme.of(context).textTheme.titleSmall),
+                              const Text(
+                                'Daily Goal',
+                                style: TextStyle(
+                                  fontFamily: 'Nunito',
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
                               Text(
                                 '${_formatMinutes(todayMinutes)} / ${_formatMinutes(dailyGoal)}',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: goalProgress >= 1.0 ? AppColors.success : AppColors.textSecondary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                style: TextStyle(
+                                  fontFamily: 'Nunito',
+                                  fontSize: 12,
+                                  color: goalProgress >= 1.0 ? AppColors.success : AppColors.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ),
@@ -228,7 +271,7 @@ class HomeScreen extends StatelessWidget {
                             child: LinearProgressIndicator(
                               value: goalProgress,
                               minHeight: 10,
-                              backgroundColor: AppColors.primaryContainer,
+                              backgroundColor: AppColors.surfaceVariant,
                               valueColor: AlwaysStoppedAnimation(
                                 goalProgress >= 1.0 ? AppColors.success : AppColors.primary,
                               ),
@@ -236,13 +279,13 @@ class HomeScreen extends StatelessWidget {
                           ),
                           if (goalProgress >= 1.0) ...[
                             const SizedBox(height: 8),
-                            Text(
+                            const Text(
                               '🎉 Daily goal achieved!',
                               style: TextStyle(
                                 fontFamily: 'Nunito',
                                 fontSize: 12,
                                 color: AppColors.success,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ],
@@ -252,7 +295,7 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                   ],
 
-                  // Current plant
+                  // Current tree
                   _GlassCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,10 +303,22 @@ class HomeScreen extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('My Garden', style: Theme.of(context).textTheme.titleSmall),
+                            const Text(
+                              'My Forest Sanctuary',
+                              style: TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
                             Text(
-                              '${plants.length} plant${plants.length == 1 ? '' : 's'}',
-                              style: Theme.of(context).textTheme.bodySmall,
+                              '${plants.length} tree${plants.length == 1 ? '' : 's'}',
+                              style: const TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ],
                         ),
@@ -273,23 +328,33 @@ class HomeScreen extends StatelessWidget {
                               ? PlantWidget(
                                   plantType: mainPlantType,
                                   progress: 1.0,
-                                  size: 120,
+                                  size: 130,
                                 )
-                              : const Text('No plants yet — start a session!'),
+                              : const Text('No trees yet — start a focus session!'),
                         ),
                         if (mainPlantType != null) ...[
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           Center(
                             child: Text(
                               mainPlantType.name,
-                              style: Theme.of(context).textTheme.titleSmall,
+                              style: const TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
                             ),
                           ),
+                          const SizedBox(height: 4),
                           Center(
                             child: Text(
                               mainPlantType.description,
                               textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodySmall,
+                              style: const TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ),
                         ],
@@ -302,14 +367,14 @@ class HomeScreen extends StatelessWidget {
                   // Start focus button
                   ElevatedButton.icon(
                     onPressed: () {
-                      // Navigate to focus tab
-                      // final scaffold = context.findAncestorStateOfType<State<MainScaffold>>();
+                      Navigator.of(context).pushNamed('/focus');
                     },
-                    icon: const Icon(Icons.play_arrow_rounded, size: 24),
-                    label: const Text('Start Focus Session'),
+                    icon: const Icon(Icons.play_arrow_rounded, size: 28),
+                    label: const Text('Start Focus Session', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size.fromHeight(56),
                       backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.textOnPrimary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -347,13 +412,13 @@ class _GlassCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: const Border.fromBorderSide(BorderSide(color: Color(0xFFEEEBE5))),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.surfaceBorder),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -380,8 +445,9 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(14),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -398,7 +464,7 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: 'Nunito',
               fontSize: 16,
               fontWeight: FontWeight.w800,

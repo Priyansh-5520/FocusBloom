@@ -32,6 +32,40 @@ class FocusSessionModel {
     return (actualDuration / 60) / duration;
   }
 
+  factory FocusSessionModel.fromMap(Map<String, dynamic> data) {
+    return FocusSessionModel(
+      id: data['id'] ?? '',
+      duration: data['duration'] ?? 0,
+      actualDuration: data['actualDuration'] ?? 0,
+      category: data['category'] ?? '',
+      plantId: data['plantId'] ?? '',
+      completed: data['completed'] ?? false,
+      xpEarned: data['xpEarned'] ?? 0,
+      coinsEarned: data['coinsEarned'] ?? 0,
+      startedAt: data['startedAt'] != null
+          ? DateTime.tryParse(data['startedAt'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      completedAt: data['completedAt'] != null
+          ? DateTime.tryParse(data['completedAt'].toString())
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'duration': duration,
+      'actualDuration': actualDuration,
+      'category': category,
+      'plantId': plantId,
+      'completed': completed,
+      'xpEarned': xpEarned,
+      'coinsEarned': coinsEarned,
+      'startedAt': startedAt.toIso8601String(),
+      'completedAt': completedAt?.toIso8601String(),
+    };
+  }
+
   factory FocusSessionModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return FocusSessionModel(

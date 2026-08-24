@@ -44,6 +44,22 @@ class UserAchievement {
     required this.unlockedAt,
   });
 
+  factory UserAchievement.fromMap(Map<String, dynamic> data) {
+    return UserAchievement(
+      achievementId: data['achievementId'] ?? '',
+      unlockedAt: data['unlockedAt'] != null
+          ? DateTime.tryParse(data['unlockedAt'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'achievementId': achievementId,
+      'unlockedAt': unlockedAt.toIso8601String(),
+    };
+  }
+
   factory UserAchievement.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return UserAchievement(

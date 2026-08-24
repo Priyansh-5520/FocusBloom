@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/user_data_provider.dart';
 import '../../providers/focus_timer_provider.dart';
 import '../../constants/app_constants.dart';
 import '../../constants/plant_data.dart';
-import '../../models/plant_model.dart';
 import '../../widgets/plant/plant_widget.dart';
 import 'focus_active_screen.dart';
 
@@ -20,7 +17,7 @@ class FocusSetupScreen extends StatefulWidget {
 class _FocusSetupScreenState extends State<FocusSetupScreen> {
   int _selectedDuration = 25;
   String _selectedCategory = 'Study';
-  String _selectedPlantId = 'focus_fern';
+  String _selectedPlantId = 'oak';
   bool _customDuration = false;
   final _customController = TextEditingController(text: '30');
 
@@ -56,11 +53,7 @@ class _FocusSetupScreenState extends State<FocusSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userData = context.watch<UserDataProvider>();
-    final userPlants = userData.plants;
-    final availablePlants = PlantData.allPlants.where((p) {
-      return p.price == 0 || userPlants.any((up) => up.plantTypeId == p.id);
-    }).toList();
+    final availablePlants = PlantData.allPlants;
 
     final selectedPlant = PlantData.getById(_selectedPlantId) ?? PlantData.allPlants.first;
 
@@ -75,40 +68,48 @@ class _FocusSetupScreenState extends State<FocusSetupScreen> {
             children: [
               const SizedBox(height: 8),
 
-              // Plant preview
+              // Tree preview
               Center(
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        selectedPlant.primaryColor.withOpacity(0.1),
-                        selectedPlant.accentColor.withOpacity(0.05),
-                      ],
-                    ),
+                    color: AppColors.surface,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: selectedPlant.primaryColor.withOpacity(0.2)),
+                    border: Border.all(color: AppColors.surfaceBorder),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Column(
                     children: [
                       PlantWidget(
                         plantType: selectedPlant,
                         progress: 0.0,
-                        size: 110,
+                        size: 120,
                       ),
                       const SizedBox(height: 12),
                       Text(
                         selectedPlant.name,
-                        style: Theme.of(context).textTheme.titleMedium,
+                        style: const TextStyle(
+                          fontFamily: 'Nunito',
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: selectedPlant.rarityColor.withOpacity(0.15),
+                          color: selectedPlant.rarityColor.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: selectedPlant.rarityColor.withOpacity(0.4),
+                          ),
                         ),
                         child: Text(
                           selectedPlant.rarityLabel,
@@ -145,10 +146,13 @@ class _FocusSetupScreenState extends State<FocusSetupScreen> {
                       }),
                       selectedColor: AppColors.primaryContainer,
                       backgroundColor: AppColors.surfaceVariant,
+                      side: BorderSide(
+                        color: isSelected ? AppColors.primary : AppColors.surfaceBorder,
+                      ),
                       labelStyle: TextStyle(
                         fontFamily: 'Nunito',
                         fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                        color: isSelected ? AppColors.primaryLight : AppColors.textSecondary,
                       ),
                     );
                   }),
@@ -158,10 +162,13 @@ class _FocusSetupScreenState extends State<FocusSetupScreen> {
                     onSelected: (_) => setState(() => _customDuration = true),
                     selectedColor: AppColors.primaryContainer,
                     backgroundColor: AppColors.surfaceVariant,
+                    side: BorderSide(
+                      color: _customDuration ? AppColors.primary : AppColors.surfaceBorder,
+                    ),
                     labelStyle: TextStyle(
                       fontFamily: 'Nunito',
                       fontWeight: _customDuration ? FontWeight.w700 : FontWeight.w500,
-                      color: _customDuration ? AppColors.primary : AppColors.textPrimary,
+                      color: _customDuration ? AppColors.primaryLight : AppColors.textSecondary,
                     ),
                   ),
                 ],
@@ -172,12 +179,14 @@ class _FocusSetupScreenState extends State<FocusSetupScreen> {
                 Row(
                   children: [
                     SizedBox(
-                      width: 100,
+                      width: 120,
                       child: TextFormField(
                         controller: _customController,
                         keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.white),
                         decoration: const InputDecoration(
                           suffixText: 'min',
+                          suffixStyle: TextStyle(color: AppColors.textSecondary),
                         ),
                       ),
                     ),
@@ -200,15 +209,16 @@ class _FocusSetupScreenState extends State<FocusSetupScreen> {
                     label: Text(c),
                     selected: isSelected,
                     onSelected: (_) => setState(() => _selectedCategory = c),
-                    selectedColor: catColor.withOpacity(0.15),
+                    selectedColor: catColor.withOpacity(0.25),
                     backgroundColor: AppColors.surfaceVariant,
                     side: BorderSide(
-                      color: isSelected ? catColor : const Color(0xFFE5E7EB),
+                      color: isSelected ? catColor : AppColors.surfaceBorder,
+                      width: isSelected ? 2 : 1,
                     ),
                     labelStyle: TextStyle(
                       fontFamily: 'Nunito',
                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                      color: isSelected ? catColor : AppColors.textPrimary,
+                      color: isSelected ? Colors.white : AppColors.textSecondary,
                     ),
                   );
                 }).toList(),
@@ -216,15 +226,15 @@ class _FocusSetupScreenState extends State<FocusSetupScreen> {
 
               const SizedBox(height: 24),
 
-              // Plant selection
-              Text('Choose Plant', style: Theme.of(context).textTheme.titleMedium),
+              // Tree selection
+              Text('Choose Tree Species', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 12),
               SizedBox(
-                height: 96,
+                height: 105,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: availablePlants.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
                   itemBuilder: (context, index) {
                     final plant = availablePlants[index];
                     final isSelected = _selectedPlantId == plant.id;
@@ -232,32 +242,41 @@ class _FocusSetupScreenState extends State<FocusSetupScreen> {
                       onTap: () => setState(() => _selectedPlantId = plant.id),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        width: 80,
+                        width: 88,
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? plant.primaryColor.withOpacity(0.15)
+                              ? AppColors.surfaceElevated
                               : AppColors.surface,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: isSelected
-                                ? plant.primaryColor
-                                : const Color(0xFFEEEBE5),
+                                ? AppColors.primary
+                                : AppColors.surfaceBorder,
                             width: isSelected ? 2 : 1,
                           ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: AppColors.primary.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(plant.emoji, style: const TextStyle(fontSize: 28)),
+                            Text(plant.emoji, style: const TextStyle(fontSize: 32)),
                             const SizedBox(height: 4),
                             Text(
                               plant.name.split(' ').first,
                               style: TextStyle(
                                 fontFamily: 'Nunito',
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: isSelected ? plant.primaryColor : AppColors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: isSelected ? AppColors.primaryLight : AppColors.textPrimary,
                               ),
                               textAlign: TextAlign.center,
                               overflow: TextOverflow.ellipsis,
@@ -275,13 +294,15 @@ class _FocusSetupScreenState extends State<FocusSetupScreen> {
               // Start button
               ElevatedButton.icon(
                 onPressed: _startSession,
-                icon: const Icon(Icons.play_arrow_rounded, size: 24),
+                icon: const Icon(Icons.play_arrow_rounded, size: 28),
                 label: Text(
-                  'Start ${_customDuration ? (_customController.text.isNotEmpty ? "${_customController.text} min" : "Custom") : _formatDuration(_selectedDuration)} Focus',
+                  'Grow ${_customDuration ? (_customController.text.isNotEmpty ? "${_customController.text} min" : "Custom") : _formatDuration(_selectedDuration)} Tree',
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
                 ),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(56),
                   backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.textOnPrimary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),

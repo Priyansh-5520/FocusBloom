@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/user_data_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/common/custom_text_field.dart';
 import '../../widgets/common/loading_button.dart';
 
@@ -40,9 +39,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       password: _passwordController.text,
     );
     if (success && mounted) {
-      final uid = authProvider.firebaseUser!.uid;
-      await context.read<UserDataProvider>().loadUserData(uid);
-      Navigator.of(context).pushReplacementNamed('/onboarding');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Account created successfully! Please sign in with your credentials.'),
+          backgroundColor: AppColors.primary,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      Navigator.of(context).pushReplacementNamed('/login');
     }
   }
 
@@ -55,165 +59,175 @@ class _RegisterScreenState extends State<RegisterScreen> {
         title: const Text('Create Account'),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 16),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 16),
 
-              // Header
-              Center(
-                child: Column(
-                  children: [
-                    Text(
-                      'Start your focus journey',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Grow your first plant today',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Error
-              Consumer<AuthProvider>(
-                builder: (context, auth, _) {
-                  if (auth.errorMessage == null) return const SizedBox.shrink();
-                  return Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: AppColors.error.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.error.withOpacity(0.3)),
-                    ),
-                    child: Row(
+                  // Header
+                  Center(
+                    child: Column(
                       children: [
-                        const Icon(Icons.error_outline, color: AppColors.error, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            auth.errorMessage!,
-                            style: const TextStyle(color: AppColors.error, fontSize: 13),
+                        Text(
+                          'Start your focus journey',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Grow your first plant today',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Error message
+                  Consumer<AuthProvider>(
+                    builder: (context, auth, _) {
+                      if (auth.errorMessage == null) return const SizedBox.shrink();
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                auth.errorMessage!,
+                                style: const TextStyle(color: AppColors.error, fontSize: 13),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => auth.clearError(),
+                              child: const Icon(Icons.close, color: AppColors.error, size: 18),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+
+                  // Form
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        CustomTextField(
+                          controller: _nameController,
+                          label: 'Full Name',
+                          hint: 'Alex Forester',
+                          prefixIcon: Icons.person_outline,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Name is required';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        CustomTextField(
+                          controller: _emailController,
+                          label: 'Email',
+                          hint: 'you@example.com',
+                          keyboardType: TextInputType.emailAddress,
+                          prefixIcon: Icons.email_outlined,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Email is required';
+                            if (!v.contains('@')) return 'Enter a valid email';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        CustomTextField(
+                          controller: _passwordController,
+                          label: 'Password',
+                          hint: 'At least 6 characters',
+                          obscureText: _obscurePassword,
+                          prefixIcon: Icons.lock_outline,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                              color: AppColors.textSecondary,
+                            ),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
+                          validator: (v) {
+                            if (v == null || v.isEmpty) return 'Password is required';
+                            if (v.length < 6) return 'At least 6 characters';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        CustomTextField(
+                          controller: _confirmPasswordController,
+                          label: 'Confirm Password',
+                          hint: 'Repeat your password',
+                          obscureText: _obscureConfirm,
+                          prefixIcon: Icons.lock_outline,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                              color: AppColors.textSecondary,
+                            ),
+                            onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                          ),
+                          validator: (v) {
+                            if (v == null || v.isEmpty) return 'Confirm your password';
+                            if (v != _passwordController.text) return 'Passwords do not match';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Register button
+                        Consumer<AuthProvider>(
+                          builder: (context, auth, _) => LoadingButton(
+                            onPressed: _register,
+                            isLoading: auth.isLoading,
+                            label: 'Create Account',
+                            icon: Icons.person_add_rounded,
                           ),
                         ),
                       ],
                     ),
-                  );
-                },
-              ),
+                  ),
 
-              // Form
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    CustomTextField(
-                      controller: _nameController,
-                      label: 'Full Name',
-                      hint: 'Your name',
-                      prefixIcon: Icons.person_outlined,
-                      textCapitalization: TextCapitalization.words,
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Name is required';
-                        if (v.trim().length < 2) return 'Name too short';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    CustomTextField(
-                      controller: _emailController,
-                      label: 'Email',
-                      hint: 'you@example.com',
-                      keyboardType: TextInputType.emailAddress,
-                      prefixIcon: Icons.email_outlined,
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Email is required';
-                        if (!v.contains('@')) return 'Enter a valid email';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    CustomTextField(
-                      controller: _passwordController,
-                      label: 'Password',
-                      hint: 'At least 6 characters',
-                      obscureText: _obscurePassword,
-                      prefixIcon: Icons.lock_outline,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                          color: AppColors.textSecondary,
+                  const SizedBox(height: 24),
+
+                  // Login link
+                  Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Already have an account? ',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
                         ),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Password is required';
-                        if (v.length < 6) return 'Password must be at least 6 characters';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    CustomTextField(
-                      controller: _confirmPasswordController,
-                      label: 'Confirm Password',
-                      hint: 'Repeat your password',
-                      obscureText: _obscureConfirm,
-                      prefixIcon: Icons.lock_outline,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                          color: AppColors.textSecondary,
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Sign In'),
                         ),
-                        onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Please confirm password';
-                        if (v != _passwordController.text) return 'Passwords do not match';
-                        return null;
-                      },
+                      ],
                     ),
-                    const SizedBox(height: 24),
-                    Consumer<AuthProvider>(
-                      builder: (context, auth, _) => LoadingButton(
-                        onPressed: _register,
-                        isLoading: auth.isLoading,
-                        label: 'Create Account',
-                        icon: Icons.arrow_forward_rounded,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
               ),
-
-              const SizedBox(height: 24),
-
-              Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Already have an account? ',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Sign In'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
+            ),
           ),
         ),
       ),

@@ -4,6 +4,7 @@ import '../models/plant_model.dart';
 import '../models/achievement_model.dart';
 import '../models/focus_session_model.dart';
 import '../models/store_item_model.dart';
+import '../constants/plant_data.dart';
 import '../repositories/user_repository.dart';
 
 /// Provides user data (plants, achievements, sessions, inventory)
@@ -48,6 +49,23 @@ class UserDataProvider extends ChangeNotifier {
       _achievements = results[2] as List<UserAchievement>;
       _sessions = results[3] as List<FocusSessionModel>;
       _inventory = results[4] as List<InventoryItem>;
+
+      // Only seed default plants if none exist anywhere (Firestore + local)
+      if (_plants.isEmpty) {
+        final now = DateTime.now();
+        _plants = PlantData.defaultUnlocked
+            .map((p) => UserPlant(
+                  id: p.id,
+                  plantTypeId: p.id,
+                  unlockedAt: now,
+                  lastUpdated: now,
+                ))
+            .toList();
+        // Persist the default plants so they survive restart
+        for (final plant in _plants) {
+          await _repository.saveUserPlant(uid, plant);
+        }
+      }
     } catch (e) {
       _error = e.toString();
     } finally {

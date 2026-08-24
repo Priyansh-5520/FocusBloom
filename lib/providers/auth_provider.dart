@@ -6,7 +6,7 @@ import '../repositories/user_repository.dart';
 import '../constants/plant_data.dart';
 import '../models/plant_model.dart';
 
-/// Manages authentication state and exposes the current Firebase user.
+/// Manages authentication lifecycle, active sessions, and profile persistence.
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService;
   final UserRepository _userRepository;
@@ -24,26 +24,66 @@ class AuthProvider extends ChangeNotifier {
   UserModel? get userModel => _userModel;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  bool get isAuthenticated => _firebaseUser != null;
+  bool get isAuthenticated => _userModel != null || _firebaseUser != null;
 
-  void _init() {
-    _authService.authStateChanges.listen((user) async {
-      _firebaseUser = user;
-      if (user != null) {
-        await _loadUserModel(user.uid);
-      } else {
-        _userModel = null;
+  void _init() async {
+    try {
+      // 1. Check persistent active local session
+      final activeUid = await _authService.getActiveLocalUid();
+      if (activeUid != null && activeUid.isNotEmpty) {
+        await _loadUserModel(activeUid);
       }
+
+      // 2. Listen to Firebase auth state changes
+      _authService.authStateChanges.listen((user) async {
+        _firebaseUser = user;
+        if (user != null) {
+          await _authService.setActiveLocalUid(user.uid);
+          // Only load if we don't already have a model for this user
+          if (_userModel == null || _userModel!.uid != user.uid) {
+            await _loadUserModel(user.uid);
+          }
+        }
+        _isLoading = false;
+        notifyListeners();
+      }, onError: (e) {
+        debugPrint('Auth state listener notice: $e');
+        _isLoading = false;
+        notifyListeners();
+      });
+    } catch (e) {
+      debugPrint('AuthProvider _init error: $e');
       _isLoading = false;
       notifyListeners();
-    });
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> _loadUserModel(String uid) async {
-    _userModel = await _userRepository.getUserProfile(uid);
+    try {
+      var profile = await _userRepository.getUserProfile(uid);
+      if (profile != null) {
+        _userModel = profile;
+        // Ensure default tree catalog is unlocked for user
+        final plants = await _userRepository.getUserPlants(uid);
+        if (plants.isEmpty) {
+          for (final plant in PlantData.defaultUnlocked) {
+            await _userRepository.saveUserPlant(
+              uid,
+              UserPlantFactory.create(plant.id),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading user model for $uid: $e');
+    }
   }
 
-  /// Register a new user with email and password.
+  /// Register a brand-new user account with name, email, and password.
+  /// Does NOT auto-sign in: requires user to sign in explicitly on the Sign In page.
   Future<bool> register({
     required String name,
     required String email,
@@ -52,112 +92,144 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(true);
     _clearError();
     try {
-      final credential = await _authService.registerWithEmailAndPassword(
+      // 1. Register in Firebase Auth if available
+      UserCredential? credential;
+      try {
+        credential = await _authService.registerWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } catch (e) {
+        debugPrint('Firebase register notice: $e');
+      }
+
+      // 2. Register local account (throws if account already exists)
+      final localAccount = await _authService.registerLocal(
+        name: name,
         email: email,
         password: password,
       );
 
-      final user = credential.user!;
-      await user.updateDisplayName(name);
+      final uid = credential?.user?.uid ?? (localAccount['uid'] as String);
 
-      // Create Firestore profile
+      if (credential?.user != null) {
+        await _authService.updateDisplayName(name);
+      }
+
+      // 3. Create persistent user profile
       final now = DateTime.now();
       final userModel = UserModel(
-        uid: user.uid,
-        name: name,
-        email: email,
-        photoUrl: user.photoURL,
+        uid: uid,
+        name: name.trim().isNotEmpty ? name.trim() : email.split('@').first,
+        email: email.trim().toLowerCase(),
+        photoUrl: credential?.user?.photoURL,
         createdAt: now,
         updatedAt: now,
       );
       await _userRepository.createUserProfile(userModel);
 
-      // Give the default plant (Focus Fern) to new users
+      // 4. Seed all default unlocked trees
       for (final plant in PlantData.defaultUnlocked) {
         await _userRepository.saveUserPlant(
-          user.uid,
+          uid,
           UserPlantFactory.create(plant.id),
         );
       }
 
-      _userModel = userModel;
+      // IMPORTANT: Do NOT log in automatically. User must sign in on the Sign In page.
+      _userModel = null;
+      _firebaseUser = null;
+      await _authService.setActiveLocalUid(null);
+
       _setLoading(false);
       return true;
     } catch (e) {
       _errorMessage = AuthService.getErrorMessage(e);
       _setLoading(false);
-      notifyListeners();
       return false;
     }
   }
 
-  /// Sign in with email and password.
+  /// Sign in an existing user with email and password.
   Future<bool> signIn({required String email, required String password}) async {
     _setLoading(true);
     _clearError();
     try {
-      await _authService.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      _setLoading(false);
-      return true;
-    } catch (e) {
-      _errorMessage = AuthService.getErrorMessage(e);
-      _setLoading(false);
-      notifyListeners();
-      return false;
-    }
-  }
-
-  /// Sign in with Google.
-  Future<bool> signInWithGoogle() async {
-    _setLoading(true);
-    _clearError();
-    try {
-      final credential = await _authService.signInWithGoogle();
-      if (credential == null) {
-        _setLoading(false);
-        return false;
+      // 1. Try Firebase Auth
+      UserCredential? credential;
+      try {
+        credential = await _authService.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } catch (e) {
+        debugPrint('Firebase signIn notice: $e');
       }
 
-      final user = credential.user!;
-      final existingProfile = await _userRepository.getUserProfile(user.uid);
+      // 2. Try local sign-in; if the local account registry was lost
+      //    (e.g. browser localStorage wiped on restart), auto-recreate it.
+      Map<String, dynamic> localAccount;
+      try {
+        localAccount = await _authService.signInLocal(
+          email: email,
+          password: password,
+        );
+      } catch (e) {
+        final errorMsg = e.toString();
+        if (errorMsg.contains('No account found')) {
+          // Local registry was lost — re-register so user isn't locked out
+          localAccount = await _authService.registerLocal(
+            name: email.split('@').first,
+            email: email,
+            password: password,
+          );
+        } else {
+          rethrow;
+        }
+      }
 
-      if (existingProfile == null) {
-        // New Google user — create profile
+      final uid = credential?.user?.uid ?? (localAccount['uid'] as String);
+      
+      // 3. Load existing profile from Firestore/local — NEVER create a default one
+      //    if data exists remotely. getUserProfile tries Firestore first.
+      var profile = await _userRepository.getUserProfile(uid);
+
+      if (profile == null) {
+        // Truly new user with no profile anywhere — create one
         final now = DateTime.now();
-        final userModel = UserModel(
-          uid: user.uid,
-          name: user.displayName ?? 'User',
-          email: user.email ?? '',
-          photoUrl: user.photoURL,
+        profile = UserModel(
+          uid: uid,
+          name: localAccount['name'] ?? email.split('@').first,
+          email: email.trim().toLowerCase(),
           createdAt: now,
           updatedAt: now,
         );
-        await _userRepository.createUserProfile(userModel);
+        await _userRepository.createUserProfile(profile);
+
         for (final plant in PlantData.defaultUnlocked) {
           await _userRepository.saveUserPlant(
-            user.uid,
+            uid,
             UserPlantFactory.create(plant.id),
           );
         }
-        _userModel = userModel;
-      } else {
-        _userModel = existingProfile;
       }
+
+      _userModel = profile;
+      if (credential?.user != null) {
+        _firebaseUser = credential!.user;
+      }
+      await _authService.setActiveLocalUid(uid);
 
       _setLoading(false);
       return true;
     } catch (e) {
       _errorMessage = AuthService.getErrorMessage(e);
       _setLoading(false);
-      notifyListeners();
       return false;
     }
   }
 
-  /// Send password reset email.
+  /// Send password reset email
   Future<bool> sendPasswordReset(String email) async {
     _clearError();
     try {
@@ -170,21 +242,28 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Sign out.
+  /// Sign out: clears active session, preserves user data in storage
   Future<void> signOut() async {
     await _authService.signOut();
+    _firebaseUser = null;
     _userModel = null;
+    _errorMessage = null;
     notifyListeners();
   }
 
-  /// Refresh the user model from Firestore.
+  /// Reload the user model from repository
   Future<void> refreshUserModel() async {
-    if (_firebaseUser == null) return;
-    _userModel = await _userRepository.getUserProfile(_firebaseUser!.uid);
-    notifyListeners();
+    final uid = _firebaseUser?.uid ?? _userModel?.uid;
+    if (uid != null) {
+      final updated = await _userRepository.getUserProfile(uid);
+      if (updated != null) {
+        _userModel = updated;
+        notifyListeners();
+      }
+    }
   }
 
-  /// Update user model locally (after session completion).
+  /// Update user model locally
   void updateUserModelLocally(UserModel updated) {
     _userModel = updated;
     notifyListeners();
@@ -205,7 +284,7 @@ class AuthProvider extends ChangeNotifier {
   }
 }
 
-/// Factory for creating UserPlant instances.
+/// Factory for creating UserPlant instances
 class UserPlantFactory {
   static UserPlant create(String plantTypeId) {
     final now = DateTime.now();

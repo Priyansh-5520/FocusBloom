@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/user_data_provider.dart';
 import '../../providers/focus_timer_provider.dart';
 import '../../constants/plant_data.dart';
 import '../../widgets/plant/plant_widget.dart';
@@ -30,24 +32,31 @@ class FocusResultScreen extends StatelessWidget {
 
               // Header
               Text(
-                isCompleted ? '🎉 Session Complete!' : 'Session Ended',
-                style: Theme.of(context).textTheme.headlineSmall,
+                isCompleted ? '🎉 Tree Grown!' : 'Session Ended',
+                style: const TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
                 isCompleted
-                    ? 'Your plant has grown beautifully!'
+                    ? 'Your magnificent tree has flourished in your forest!'
                     : 'You ended early. Partial rewards earned.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+                style: const TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                ),
                 textAlign: TextAlign.center,
               ),
 
               const SizedBox(height: 32),
 
-              // Plant display
+              // Tree display
               if (plantType != null)
                 PlantWidget(
                   plantType: plantType,
@@ -64,9 +73,14 @@ class FocusResultScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  border: const Border.fromBorderSide(
-                    BorderSide(color: Color(0xFFEEEBE5)),
-                  ),
+                  border: Border.all(color: AppColors.surfaceBorder),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.12),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   children: [
@@ -88,7 +102,7 @@ class FocusResultScreen extends StatelessWidget {
                       icon: Icons.monetization_on_outlined,
                       label: 'Bloom Coins',
                       value: '+${reward?.coins ?? 0} 🪙',
-                      color: AppColors.secondaryDark,
+                      color: AppColors.secondary,
                     ),
                     if (session != null && session.completionPercent < 1.0) ...[
                       const Divider(height: 24),
@@ -110,9 +124,9 @@ class FocusResultScreen extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.secondaryContainer,
+                    color: AppColors.surface,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.secondary.withOpacity(0.3)),
+                    border: Border.all(color: AppColors.secondary.withOpacity(0.4)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -121,11 +135,14 @@ class FocusResultScreen extends StatelessWidget {
                         children: [
                           const Text('🏆', style: TextStyle(fontSize: 18)),
                           const SizedBox(width: 8),
-                          Text(
+                          const Text(
                             'Achievements Unlocked!',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  color: AppColors.secondaryDark,
-                                ),
+                            style: TextStyle(
+                              fontFamily: 'Nunito',
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.secondary,
+                            ),
                           ),
                         ],
                       ),
@@ -143,8 +160,23 @@ class FocusResultScreen extends StatelessWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(def.title, style: Theme.of(context).textTheme.titleSmall),
-                                    Text(def.description, style: Theme.of(context).textTheme.bodySmall),
+                                    Text(
+                                      def.title,
+                                      style: const TextStyle(
+                                        fontFamily: 'Nunito',
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    Text(
+                                      def.description,
+                                      style: const TextStyle(
+                                        fontFamily: 'Nunito',
+                                        fontSize: 11,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -161,25 +193,44 @@ class FocusResultScreen extends StatelessWidget {
 
               // Action buttons
               ElevatedButton.icon(
-                onPressed: () {
+                onPressed: () async {
+                  final auth = context.read<AuthProvider>();
+                  final userData = context.read<UserDataProvider>();
+                  final uid = auth.firebaseUser?.uid ?? auth.userModel?.uid;
+                  if (uid != null) {
+                    await auth.refreshUserModel();
+                    await userData.refresh(uid);
+                  }
                   timer.reset();
-                  // Pop all the way back to main screen
-                  Navigator.of(context).popUntil((route) => route.isFirst);
+                  if (context.mounted) {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  }
                 },
                 icon: const Icon(Icons.check_rounded),
-                label: const Text('Done'),
+                label: const Text('Done', style: TextStyle(fontWeight: FontWeight.w800)),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.textOnPrimary,
                 ),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: () {
+                onPressed: () async {
+                  final auth = context.read<AuthProvider>();
+                  final userData = context.read<UserDataProvider>();
+                  final uid = auth.firebaseUser?.uid ?? auth.userModel?.uid;
+                  if (uid != null) {
+                    await auth.refreshUserModel();
+                    await userData.refresh(uid);
+                  }
                   timer.reset();
-                  Navigator.of(context).pop(); // back to setup
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                  }
                 },
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Start Another Session'),
+                label: const Text('Grow Another Tree', style: TextStyle(fontWeight: FontWeight.w700)),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
                 ),
@@ -226,17 +277,30 @@ class _StatRow extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withOpacity(0.18),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: color, size: 18),
         ),
         const SizedBox(width: 12),
-        Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Nunito',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
         const Spacer(),
         Text(
           value,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(color: color),
+          style: TextStyle(
+            fontFamily: 'Nunito',
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            color: color,
+          ),
         ),
       ],
     );

@@ -222,19 +222,7 @@ class FocusTimerProvider extends ChangeNotifier {
     final updatedTotalXP = user.totalXP + reward.xp;
     final newLevel = LevelService.getLevelForXP(updatedTotalXP);
 
-    final profileUpdates = {
-      'totalXP': FieldValue.increment(reward.xp),
-      'level': newLevel,
-      'totalFocusMinutes': FieldValue.increment(actualSeconds ~/ 60),
-      'totalSessions': FieldValue.increment(1),
-      'coins': FieldValue.increment(reward.coins),
-      'currentStreak': newStreak,
-      'longestStreak': newLongestStreak,
-      'lastFocusDate': StreakService.todayString(),
-    };
-
-    // Simulate updated user for achievement check
-    final simulatedUser = user.copyWith(
+    final updatedUser = user.copyWith(
       totalXP: updatedTotalXP,
       level: newLevel,
       totalFocusMinutes: user.totalFocusMinutes + (actualSeconds ~/ 60),
@@ -243,6 +231,7 @@ class FocusTimerProvider extends ChangeNotifier {
       currentStreak: newStreak,
       longestStreak: newLongestStreak,
       lastFocusDate: StreakService.todayString(),
+      updatedAt: now,
     );
 
     // Check achievements
@@ -251,21 +240,17 @@ class FocusTimerProvider extends ChangeNotifier {
         .toList();
 
     final newAchievements = AchievementService.checkNewAchievements(
-      user: simulatedUser,
+      user: updatedUser,
       session: session,
       alreadyUnlockedIds: existingAchievementIds,
       totalPlants: existingPlants.length,
     );
 
-    // Add achievement rewards to profile
-    // int bonusXP = 0, bonusCoins = 0;
-    // (Achievement rewards are small and already tracked; we'll display them on the result screen)
-
-    // Commit to Firestore
+    // Commit to local repository and Firestore
     await _repository.completeSession(
       uid: user.uid,
       session: session,
-      profileUpdates: profileUpdates,
+      updatedUser: updatedUser,
       plant: updatedPlant,
       newAchievementIds: newAchievements,
     );

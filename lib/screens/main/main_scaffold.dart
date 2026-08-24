@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
-import '../../providers/user_data_provider.dart';
-import '../../providers/auth_provider.dart';
 import '../home/home_screen.dart';
 import '../garden/garden_screen.dart';
 import '../history/history_screen.dart';
@@ -39,11 +36,11 @@ class _MainScaffoldState extends State<MainScaffold> {
         decoration: BoxDecoration(
           color: AppColors.surface,
           border: const Border(
-            top: BorderSide(color: Color(0xFFEEEBE5), width: 1),
+            top: BorderSide(color: AppColors.surfaceBorder, width: 1),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withOpacity(0.18),
               blurRadius: 12,
               offset: const Offset(0, -4),
             ),
@@ -72,9 +69,9 @@ class _MainScaffoldState extends State<MainScaffold> {
                   onTap: (i) => setState(() => _currentIndex = i),
                 ),
                 _NavItem(
-                  icon: Icons.yard_outlined,
-                  activeIcon: Icons.yard_rounded,
-                  label: 'Garden',
+                  icon: Icons.park_outlined,
+                  activeIcon: Icons.park_rounded,
+                  label: 'Forest',
                   index: 2,
                   currentIndex: _currentIndex,
                   onTap: (i) => setState(() => _currentIndex = i),

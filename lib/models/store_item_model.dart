@@ -41,6 +41,31 @@ class InventoryItem {
     this.isEquipped = false,
   });
 
+  factory InventoryItem.fromMap(Map<String, dynamic> data) {
+    return InventoryItem(
+      id: data['id'] ?? data['itemId'] ?? '',
+      itemId: data['itemId'] ?? data['id'] ?? '',
+      type: StoreItemType.values.firstWhere(
+        (e) => e.name == data['type'],
+        orElse: () => StoreItemType.decoration,
+      ),
+      purchasedAt: data['purchasedAt'] != null
+          ? DateTime.tryParse(data['purchasedAt'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      isEquipped: data['isEquipped'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'itemId': itemId,
+      'type': type.name,
+      'purchasedAt': purchasedAt.toIso8601String(),
+      'isEquipped': isEquipped,
+    };
+  }
+
   factory InventoryItem.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return InventoryItem(

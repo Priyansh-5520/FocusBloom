@@ -24,7 +24,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1000),
     );
     _scaleAnim = CurvedAnimation(parent: _controller, curve: Curves.elasticOut)
         .drive(Tween(begin: 0.6, end: 1.0));
@@ -36,38 +36,44 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _navigate() async {
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
+    final startTime = DateTime.now();
 
     final authProvider = context.read<AuthProvider>();
+    final userDataProvider = context.read<UserDataProvider>();
+    final prefs = await SharedPreferences.getInstance();
+    final onboardingDone = prefs.getBool(AppConstants.kOnboardingComplete) ?? false;
 
-    // Wait for auth state to be determined
-    if (authProvider.isLoading) {
-      await Future.doWhile(() async {
-        await Future.delayed(const Duration(milliseconds: 100));
-        return authProvider.isLoading;
-      });
+    // Preload user data in background while splash is animating
+    if (authProvider.isAuthenticated) {
+      final uid = authProvider.firebaseUser?.uid ?? authProvider.userModel?.uid;
+      if (uid != null) {
+        try {
+          await userDataProvider.loadUserData(uid);
+        } catch (_) {}
+      }
+    }
+
+    // Guarantee splash screen displays for exactly 3 seconds
+    final elapsed = DateTime.now().difference(startTime);
+    final remaining = const Duration(seconds: 3) - elapsed;
+    if (remaining > Duration.zero) {
+      await Future.delayed(remaining);
     }
 
     if (!mounted) return;
 
     if (authProvider.isAuthenticated) {
-      // Load user data
-      final uid = authProvider.firebaseUser!.uid;
-      await context.read<UserDataProvider>().loadUserData(uid);
-
-      // Check onboarding
-      final prefs = await SharedPreferences.getInstance();
-      final onboardingDone = prefs.getBool(AppConstants.kOnboardingComplete) ?? false;
-
-      if (!mounted) return;
       if (!onboardingDone) {
         Navigator.of(context).pushReplacementNamed('/onboarding');
       } else {
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } else {
-      Navigator.of(context).pushReplacementNamed('/login');
+      if (!onboardingDone) {
+        Navigator.of(context).pushReplacementNamed('/onboarding');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
     }
   }
 

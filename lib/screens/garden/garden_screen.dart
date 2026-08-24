@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/user_data_provider.dart';
 import '../../constants/plant_data.dart';
+import '../../models/plant_model.dart';
 import '../../widgets/plant/plant_widget.dart';
 
 class GardenScreen extends StatefulWidget {
@@ -37,14 +37,14 @@ class _GardenScreenState extends State<GardenScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('My Garden'),
+        title: const Text('My Forest'),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppColors.primary,
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textSecondary,
           tabs: const [
-            Tab(text: 'Plants'),
+            Tab(text: 'Trees'),
             Tab(text: 'Progress'),
           ],
         ),
@@ -52,29 +52,35 @@ class _GardenScreenState extends State<GardenScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Plants tab
-          plants.isEmpty
-              ? _EmptyGarden()
-              : GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.85,
-                  ),
-                  itemCount: plants.length,
-                  itemBuilder: (context, index) {
-                    final plant = plants[index];
-                    final plantType = PlantData.getById(plant.plantTypeId);
-                    if (plantType == null) return const SizedBox.shrink();
-
-                    return _PlantCard(
-                      plantType: plantType,
-                      plant: plant,
-                    );
-                  },
+          // Trees tab — all 12 tree species
+          GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.85,
+            ),
+            itemCount: PlantData.allPlants.length,
+            itemBuilder: (context, index) {
+              final plantType = PlantData.allPlants[index];
+              final userPlant = plants.firstWhere(
+                (up) => up.plantTypeId == plantType.id,
+                orElse: () => UserPlant(
+                  id: plantType.id,
+                  plantTypeId: plantType.id,
+                  unlockedAt: DateTime.now(),
+                  lastUpdated: DateTime.now(),
+                  sessionCount: 0,
                 ),
+              );
+
+              return _PlantCard(
+                plantType: plantType,
+                plant: userPlant,
+              );
+            },
+          ),
 
           // Progress tab
           _ProductivityProgressView(),
@@ -85,8 +91,8 @@ class _GardenScreenState extends State<GardenScreen>
 }
 
 class _PlantCard extends StatelessWidget {
-  final plantType;
-  final plant;
+  final PlantType plantType;
+  final UserPlant plant;
 
   const _PlantCard({required this.plantType, required this.plant});
 
@@ -95,13 +101,13 @@ class _PlantCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEEEBE5)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.surfaceBorder),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -111,14 +117,19 @@ class _PlantCard extends StatelessWidget {
           PlantWidget(
             plantType: plantType,
             progress: 1.0,
-            size: 90,
+            size: 92,
           ),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Text(
               plantType.name,
-              style: Theme.of(context).textTheme.titleSmall,
+              style: const TextStyle(
+                fontFamily: 'Nunito',
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -127,15 +138,23 @@ class _PlantCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '${plant.sessionCount} session${plant.sessionCount == 1 ? '' : 's'}',
-            style: Theme.of(context).textTheme.bodySmall,
+            style: const TextStyle(
+              fontFamily: 'Nunito',
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             margin: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: plantType.rarityColor.withOpacity(0.1),
+              color: plantType.rarityColor.withOpacity(0.2),
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: plantType.rarityColor.withOpacity(0.4),
+                width: 1,
+              ),
             ),
             child: Text(
               plantType.rarityLabel,
@@ -146,30 +165,6 @@ class _PlantCard extends StatelessWidget {
                 color: plantType.rarityColor,
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyGarden extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('🌱', style: TextStyle(fontSize: 64)),
-          const SizedBox(height: 16),
-          Text('Your garden is empty', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Text(
-            'Complete a focus session to grow your first plant!',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -216,7 +211,7 @@ class _ProductivityProgressView extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(16),
-              border: const Border.fromBorderSide(BorderSide(color: Color(0xFFEEEBE5))),
+              border: Border.all(color: AppColors.surfaceBorder),
             ),
             child: Column(
               children: [
@@ -236,10 +231,10 @@ class _ProductivityProgressView extends StatelessWidget {
                           if (minutes > 0)
                             Text(
                               '${minutes}m',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: 'Nunito',
                                 fontSize: 9,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
                                 color: AppColors.primary,
                               ),
                             ),
@@ -251,7 +246,7 @@ class _ProductivityProgressView extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: isToday
                                   ? AppColors.primary
-                                  : AppColors.primaryContainer,
+                                  : AppColors.surfaceVariant,
                               borderRadius: BorderRadius.circular(6),
                             ),
                           ),
@@ -280,11 +275,11 @@ class _ProductivityProgressView extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 20),
-          Text('Recent Sessions Garden', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 24),
+          Text('Recent Forest Tree Growth', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
 
-          // Simple session grid — last 30 sessions as plant emojis
+          // Simple session grid — last 30 sessions as tree emojis
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -294,15 +289,15 @@ class _ProductivityProgressView extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: (s.completed ? AppColors.primaryContainer : AppColors.surfaceVariant),
+                  color: (s.completed ? AppColors.surface : AppColors.surfaceVariant),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: s.completed ? AppColors.primary.withOpacity(0.3) : Colors.transparent,
+                    color: s.completed ? AppColors.primary.withOpacity(0.4) : AppColors.surfaceBorder,
                   ),
                 ),
                 child: Center(
                   child: Text(
-                    pt?.emoji ?? '🌱',
+                    pt?.emoji ?? '🌲',
                     style: const TextStyle(fontSize: 20),
                   ),
                 ),

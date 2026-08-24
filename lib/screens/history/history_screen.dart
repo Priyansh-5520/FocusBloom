@@ -58,11 +58,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       label: Text(pair.$1),
                       selected: _filterStatus == pair.$2,
                       onSelected: (_) => setState(() => _filterStatus = pair.$2),
+                      selectedColor: AppColors.primaryContainer,
+                      backgroundColor: AppColors.surfaceVariant,
+                      side: BorderSide(
+                        color: _filterStatus == pair.$2 ? AppColors.primary : AppColors.surfaceBorder,
+                      ),
+                      labelStyle: TextStyle(
+                        fontFamily: 'Nunito',
+                        fontWeight: _filterStatus == pair.$2 ? FontWeight.w700 : FontWeight.w500,
+                        color: _filterStatus == pair.$2 ? AppColors.primaryLight : AppColors.textSecondary,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                const VerticalDivider(width: 1),
+                Container(width: 1, height: 24, color: AppColors.surfaceBorder),
                 const SizedBox(width: 8),
                 // Category filter
                 ...['All', 'Study', 'Coding', 'Work', 'Reading'].map(
@@ -72,6 +82,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       label: Text(cat),
                       selected: _filterCategory == cat,
                       onSelected: (_) => setState(() => _filterCategory = cat),
+                      selectedColor: AppColors.primaryContainer,
+                      backgroundColor: AppColors.surfaceVariant,
+                      side: BorderSide(
+                        color: _filterCategory == cat ? AppColors.primary : AppColors.surfaceBorder,
+                      ),
+                      labelStyle: TextStyle(
+                        fontFamily: 'Nunito',
+                        fontWeight: _filterCategory == cat ? FontWeight.w700 : FontWeight.w500,
+                        color: _filterCategory == cat ? AppColors.primaryLight : AppColors.textSecondary,
+                      ),
                     ),
                   ),
                 ),
@@ -96,9 +116,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Text(
                         dateKey,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
+                        style: const TextStyle(
+                          fontFamily: 'Nunito',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
                     ...daySessions.map((s) => _SessionCard(session: s)),
@@ -139,22 +162,22 @@ class _SessionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFEEEBE5)),
+        border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Row(
         children: [
-          // Plant emoji
+          // Tree emoji
           Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: catColor.withOpacity(0.1),
+              color: catColor.withOpacity(0.18),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
               child: Text(
-                plantType?.emoji ?? '🌱',
-                style: const TextStyle(fontSize: 20),
+                plantType?.emoji ?? '🌲',
+                style: const TextStyle(fontSize: 22),
               ),
             ),
           ),
@@ -165,18 +188,26 @@ class _SessionCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(session.category, style: Theme.of(context).textTheme.titleSmall),
+                    Text(
+                      session.category,
+                      style: const TextStyle(
+                        fontFamily: 'Nunito',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: session.completed
-                            ? AppColors.success.withOpacity(0.1)
-                            : AppColors.error.withOpacity(0.1),
+                            ? AppColors.success.withOpacity(0.2)
+                            : AppColors.error.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        session.completed ? 'Done' : 'Quit',
+                        session.completed ? 'Grown' : 'Quit',
                         style: TextStyle(
                           fontFamily: 'Nunito',
                           fontSize: 10,
@@ -189,8 +220,12 @@ class _SessionCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${plantType?.name ?? "Plant"} · ${session.duration}m planned · $timeStr',
-                  style: Theme.of(context).textTheme.bodySmall,
+                  '${plantType?.name ?? "Tree"} · ${session.duration}m planned · $timeStr',
+                  style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -200,7 +235,7 @@ class _SessionCard extends StatelessWidget {
             children: [
               Text(
                 '+${session.xpEarned} XP',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: 'Nunito',
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -210,7 +245,11 @@ class _SessionCard extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 '+${session.coinsEarned} 🪙',
-                style: Theme.of(context).textTheme.bodySmall,
+                style: const TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ],
           ),
@@ -234,7 +273,7 @@ class _EmptyHistory extends StatelessWidget {
           Text('No sessions yet', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
-            'Complete a focus session to see your history.',
+            'Complete a focus session to see your tree history.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.textSecondary,
                 ),

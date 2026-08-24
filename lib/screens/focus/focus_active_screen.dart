@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/user_data_provider.dart';
 import '../../providers/focus_timer_provider.dart';
 import '../../widgets/plant/plant_widget.dart';
 import 'focus_result_screen.dart';
@@ -32,17 +33,15 @@ class _FocusActiveViewState extends State<_FocusActiveView> {
     });
   }
 
-  Future<bool> _onWillPop() async {
-    return await _showEndSessionDialog() ?? false;
-  }
-
   Future<bool?> _showEndSessionDialog() {
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('End Session?'),
+        backgroundColor: AppColors.surface,
+        title: const Text('Leave Focus Session?', style: TextStyle(color: Colors.white)),
         content: const Text(
-          "You haven't completed this focus session. Your plant growth and rewards may be reduced.",
+          'Leaving now will give you partial rewards, and your tree will stop growing for this session.',
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
@@ -64,10 +63,13 @@ class _FocusActiveViewState extends State<_FocusActiveView> {
     if (confirm == true && mounted) {
       final timer = context.read<FocusTimerProvider>();
       final auth = context.read<AuthProvider>();
-      if (auth.userModel != null) {
-        await timer.abandonSession(auth.userModel!);
+      final userData = context.read<UserDataProvider>();
+      final user = auth.userModel ?? userData.user;
+      if (user != null) {
+        await timer.abandonSession(user);
         if (mounted) {
           await auth.refreshUserModel();
+          await userData.refresh(user.uid);
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const FocusResultScreen()),
           );
@@ -80,14 +82,17 @@ class _FocusActiveViewState extends State<_FocusActiveView> {
   Widget build(BuildContext context) {
     final timer = context.watch<FocusTimerProvider>();
     final auth = context.watch<AuthProvider>();
+    final userData = context.watch<UserDataProvider>();
+    final user = auth.userModel ?? userData.user;
 
     // Auto-complete when timer reaches 0
     if (timer.remainingSeconds == 0 && timer.state == TimerState.running) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (auth.userModel != null) {
-          await timer.completeSession(auth.userModel!);
+        if (user != null) {
+          await timer.completeSession(user);
           if (mounted) {
             await auth.refreshUserModel();
+            await userData.refresh(user.uid);
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const FocusResultScreen()),
             );
@@ -102,8 +107,15 @@ class _FocusActiveViewState extends State<_FocusActiveView> {
     final isPaused = timer.state == TimerState.paused;
     final catColor = AppColors.categoryColors[timer.category] ?? AppColors.primary;
 
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldPop = await _showEndSessionDialog() ?? false;
+        if (shouldPop && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
       child: Scaffold(
         backgroundColor: AppColors.background,
         body: SafeArea(
@@ -266,11 +278,11 @@ class _FocusActiveViewState extends State<_FocusActiveView> {
   }
 
   String _getMotivationalMessage(double progress) {
-    if (progress < 0.2) return 'Stay focused. Your plant is sprouting...';
-    if (progress < 0.4) return 'Great start! Keep going 🌿';
-    if (progress < 0.6) return "You're making progress! Halfway there!";
-    if (progress < 0.8) return 'Almost there! Your plant is blooming 🌸';
-    if (progress < 1.0) return "So close! Don't stop now!";
-    return '🎉 Session complete!';
+    if (progress < 0.2) return 'Stay focused. Your seed is taking root... 🌱';
+    if (progress < 0.4) return 'A sturdy sapling emerges! Keep going 🌿';
+    if (progress < 0.6) return "Branches are spreading wide! Halfway there!";
+    if (progress < 0.8) return 'Rich foliage is filling the canopy 🌳';
+    if (progress < 1.0) return "Almost fully grown! Keep your focus strong!";
+    return '🎉 Grand Tree fully grown!';
   }
 }
