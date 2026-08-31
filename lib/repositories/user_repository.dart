@@ -438,9 +438,6 @@ class UserRepository {
     return items.any((i) => i.itemId == itemId);
   }
 
-  // =========================================================================
-  // BATCH: Session complete update
-  // =========================================================================
   Future<void> completeSession({
     required String uid,
     required FocusSessionModel session,

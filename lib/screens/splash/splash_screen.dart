@@ -43,6 +43,10 @@ class _SplashScreenState extends State<SplashScreen>
     final prefs = await SharedPreferences.getInstance();
     final onboardingDone = prefs.getBool(AppConstants.kOnboardingComplete) ?? false;
 
+    // Wait for AuthProvider to finish its initial auth check before reading state.
+    // This prevents the race where _init() hasn't loaded the user model yet.
+    await authProvider.initialized;
+
     // Preload user data in background while splash is animating
     if (authProvider.isAuthenticated) {
       final uid = authProvider.firebaseUser?.uid ?? authProvider.userModel?.uid;

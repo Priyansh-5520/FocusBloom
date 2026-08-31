@@ -3,21 +3,21 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // Background — User's requested color #3c6e71
-  static const Color background = Color(0xFF3C6E71);
-  static const Color backgroundDark = Color(0xFF284B4D);
+  // Background — Best light green shade (Nature / Plant theme)
+  static const Color background = Color(0xFF7CB342); // Light Green
+  static const Color backgroundDark = Color(0xFF689F38);
 
   // Surfaces & Cards
-  static const Color surface = Color(0xFF285356);
-  static const Color surfaceElevated = Color(0xFF315E61);
-  static const Color surfaceVariant = Color(0xFF204648);
-  static const Color surfaceBorder = Color(0xFF4D7E81);
+  static const Color surface = Color(0xFF558B2F);
+  static const Color surfaceElevated = Color(0xFF4CAF50);
+  static const Color surfaceVariant = Color(0xFF33691E);
+  static const Color surfaceBorder = Color(0xFF9CCC65);
 
   // Primary palette — fresh vibrant emerald & mint
   static const Color primary = Color(0xFF2EC4B6);
   static const Color primaryLight = Color(0xFF6FFFE9);
   static const Color primaryDark = Color(0xFF1B8A7F);
-  static const Color primaryContainer = Color(0xFF235557);
+  static const Color primaryContainer = Color(0xFF33691E);
 
   // Secondary — golden amber / sunny bloom
   static const Color secondary = Color(0xFFFFD166);
@@ -94,7 +94,7 @@ class AppTheme {
         surfaceContainerHighest: AppColors.surfaceVariant,
         onSurfaceVariant: AppColors.textSecondary,
         outline: AppColors.surfaceBorder,
-        outlineVariant: Color(0xFF386568),
+        outlineVariant: Color(0xFF8BC34A),
         shadow: Colors.black45,
         scrim: Colors.black87,
         inverseSurface: Colors.white,

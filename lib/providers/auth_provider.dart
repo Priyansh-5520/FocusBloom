@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../services/auth_service.dart';
@@ -15,6 +16,13 @@ class AuthProvider extends ChangeNotifier {
   UserModel? _userModel;
   bool _isLoading = true;
   String? _errorMessage;
+
+  /// Completer that resolves once the initial auth state is fully resolved.
+  final Completer<void> _initCompleter = Completer<void>();
+
+  /// A future that completes when the initial auth check is done.
+  /// SplashScreen should await this before reading [isAuthenticated].
+  Future<void> get initialized => _initCompleter.future;
 
   AuthProvider(this._authService, this._userRepository) {
     _init();
@@ -44,19 +52,17 @@ class AuthProvider extends ChangeNotifier {
             await _loadUserModel(user.uid);
           }
         }
-        _isLoading = false;
         notifyListeners();
       }, onError: (e) {
         debugPrint('Auth state listener notice: $e');
-        _isLoading = false;
-        notifyListeners();
       });
     } catch (e) {
       debugPrint('AuthProvider _init error: $e');
-      _isLoading = false;
-      notifyListeners();
     } finally {
       _isLoading = false;
+      if (!_initCompleter.isCompleted) {
+        _initCompleter.complete();
+      }
       notifyListeners();
     }
   }
@@ -151,6 +157,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// Sign in an existing user with email and password.
+  /// The user MUST have registered first; unregistered emails are rejected.
   Future<bool> signIn({required String email, required String password}) async {
     _setLoading(true);
     _clearError();
@@ -166,27 +173,11 @@ class AuthProvider extends ChangeNotifier {
         debugPrint('Firebase signIn notice: $e');
       }
 
-      // 2. Try local sign-in; if the local account registry was lost
-      //    (e.g. browser localStorage wiped on restart), auto-recreate it.
-      Map<String, dynamic> localAccount;
-      try {
-        localAccount = await _authService.signInLocal(
-          email: email,
-          password: password,
-        );
-      } catch (e) {
-        final errorMsg = e.toString();
-        if (errorMsg.contains('No account found')) {
-          // Local registry was lost — re-register so user isn't locked out
-          localAccount = await _authService.registerLocal(
-            name: email.split('@').first,
-            email: email,
-            password: password,
-          );
-        } else {
-          rethrow;
-        }
-      }
+      // 2. Local sign-in — throws if no account exists (user must register first)
+      final localAccount = await _authService.signInLocal(
+        email: email,
+        password: password,
+      );
 
       final uid = credential?.user?.uid ?? (localAccount['uid'] as String);
       
@@ -195,7 +186,7 @@ class AuthProvider extends ChangeNotifier {
       var profile = await _userRepository.getUserProfile(uid);
 
       if (profile == null) {
-        // Truly new user with no profile anywhere — create one
+        // Profile was lost but account exists — recreate from local account data
         final now = DateTime.now();
         profile = UserModel(
           uid: uid,
