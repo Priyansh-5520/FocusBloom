@@ -13,10 +13,10 @@ class AppColors {
   static const Color surfaceVariant = Color(0xFF33691E);
   static const Color surfaceBorder = Color(0xFF9CCC65);
 
-  // Primary palette — fresh vibrant emerald & mint
-  static const Color primary = Color(0xFF2EC4B6);
-  static const Color primaryLight = Color(0xFF6FFFE9);
-  static const Color primaryDark = Color(0xFF1B8A7F);
+  // Primary palette — rich forest green
+  static const Color primary = Color(0xFF43A047);
+  static const Color primaryLight = Color(0xFF76D275);
+  static const Color primaryDark = Color(0xFF2E7D32);
   static const Color primaryContainer = Color(0xFF33691E);
 
   // Secondary — golden amber / sunny bloom

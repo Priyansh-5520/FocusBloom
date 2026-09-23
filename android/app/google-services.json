@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "74123284037",
+    "project_id": "focusbloom123",
+    "storage_bucket": "focusbloom123.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:74123284037:android:4a497fc29ecd6340ba5d2c",
+        "android_client_info": {
+          "package_name": "com.focusbloom.focus_bloom"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCvAObnetdsApux4epPy6J56DtE-x644kE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

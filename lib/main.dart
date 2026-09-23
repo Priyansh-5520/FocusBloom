@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 
+import 'firebase_options.dart';
+
 import 'constants/app_constants.dart';
 import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
@@ -31,7 +33,9 @@ void main() async {
 
   // Safe Firebase Initialization
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
   } catch (e) {
     debugPrint('Firebase initialization notice: $e');
   }

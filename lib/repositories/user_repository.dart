@@ -50,7 +50,7 @@ class UserRepository {
 
   /// Create or overwrite a user profile document.
   Future<void> createUserProfile(UserModel user) async {
-    // 1. Save locally
+    // 1. Save locally first (instant)
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_profileKey(user.uid), jsonEncode(user.toMap()));
@@ -58,17 +58,20 @@ class UserRepository {
       debugPrint('Local profile save error: $e');
     }
 
-    // 2. Sync with Firestore if available (merge to never overwrite existing data)
-    try {
-      await _userDoc(user.uid)?.set(user.toFirestore(), SetOptions(merge: true));
-    } catch (_) {}
+    // 2. Sync with Firestore in background (fire-and-forget, never blocks UI)
+    _userDoc(user.uid)?.set(user.toFirestore(), SetOptions(merge: true))
+        .timeout(const Duration(seconds: 10))
+        .catchError((e) {
+      debugPrint('Firestore profile save error: $e');
+    });
   }
 
   /// Fetch the user profile.
   Future<UserModel?> getUserProfile(String uid) async {
-    // Try Firestore first if available
+    // Try Firestore first if available (with timeout so it never hangs)
     try {
-      final doc = await _userDoc(uid)?.get();
+      final doc = await _userDoc(uid)?.get()
+          .timeout(const Duration(seconds: 5));
       if (doc != null && doc.exists) {
         final user = UserModel.fromFirestore(doc);
         // Cache locally
@@ -281,12 +284,14 @@ class UserRepository {
       debugPrint('Local plant save error: $e');
     }
 
-    // 2. Save to Firestore
-    try {
-      await _plantsCol(uid)
-          ?.doc(plant.plantTypeId)
-          .set(plant.toFirestore(), SetOptions(merge: true));
-    } catch (_) {}
+    // 2. Save to Firestore in background (fire-and-forget, never blocks UI)
+    _plantsCol(uid)
+        ?.doc(plant.plantTypeId)
+        .set(plant.toFirestore(), SetOptions(merge: true))
+        .timeout(const Duration(seconds: 10))
+        .catchError((e) {
+      debugPrint('Firestore plant save error: $e');
+    });
   }
 
   /// Check if user has a plant.

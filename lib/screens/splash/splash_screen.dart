@@ -73,11 +73,8 @@ class _SplashScreenState extends State<SplashScreen>
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } else {
-      if (!onboardingDone) {
-        Navigator.of(context).pushReplacementNamed('/onboarding');
-      } else {
-        Navigator.of(context).pushReplacementNamed('/login');
-      }
+      // Always show onboarding (Get Started) for non-authenticated users
+      Navigator.of(context).pushReplacementNamed('/onboarding');
     }
   }
 

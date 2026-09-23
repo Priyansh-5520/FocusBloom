@@ -43,6 +43,7 @@ class AuthProvider extends ChangeNotifier {
       }
 
       // 2. Listen to Firebase auth state changes
+      bool isFirstEvent = true;
       _authService.authStateChanges.listen((user) async {
         _firebaseUser = user;
         if (user != null) {
@@ -52,13 +53,27 @@ class AuthProvider extends ChangeNotifier {
             await _loadUserModel(user.uid);
           }
         }
+        
+        if (isFirstEvent) {
+          isFirstEvent = false;
+          _isLoading = false;
+          if (!_initCompleter.isCompleted) {
+            _initCompleter.complete();
+          }
+        }
         notifyListeners();
       }, onError: (e) {
         debugPrint('Auth state listener notice: $e');
+        if (isFirstEvent) {
+          isFirstEvent = false;
+          _isLoading = false;
+          if (!_initCompleter.isCompleted) {
+            _initCompleter.complete();
+          }
+        }
       });
     } catch (e) {
       debugPrint('AuthProvider _init error: $e');
-    } finally {
       _isLoading = false;
       if (!_initCompleter.isCompleted) {
         _initCompleter.complete();
@@ -104,7 +119,7 @@ class AuthProvider extends ChangeNotifier {
         credential = await _authService.registerWithEmailAndPassword(
           email: email,
           password: password,
-        );
+        ).timeout(const Duration(seconds: 10));
       } catch (e) {
         debugPrint('Firebase register notice: $e');
       }
@@ -168,7 +183,7 @@ class AuthProvider extends ChangeNotifier {
         credential = await _authService.signInWithEmailAndPassword(
           email: email,
           password: password,
-        );
+        ).timeout(const Duration(seconds: 10));
       } catch (e) {
         debugPrint('Firebase signIn notice: $e');
       }
