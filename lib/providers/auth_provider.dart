@@ -188,15 +188,39 @@ class AuthProvider extends ChangeNotifier {
         debugPrint('Firebase signIn notice: $e');
       }
 
-      // 2. Local sign-in — throws if no account exists (user must register first)
-      final localAccount = await _authService.signInLocal(
-        email: email,
-        password: password,
-      );
+      // 2. Try local sign-in
+      Map<String, dynamic>? localAccount;
+      try {
+        localAccount = await _authService.signInLocal(
+          email: email,
+          password: password,
+        );
+      } catch (e) {
+        debugPrint('Local signIn notice: $e');
+        // If Firebase Auth succeeded but local account is missing (Chrome wiped it),
+        // auto-create the local account so the user can proceed.
+        if (credential?.user != null) {
+          debugPrint('Firebase auth succeeded, recreating local account...');
+          try {
+            localAccount = await _authService.registerLocal(
+              name: credential!.user!.displayName ?? email.split('@').first,
+              email: email,
+              password: password,
+            );
+          } catch (regErr) {
+            debugPrint('Local re-register notice: $regErr');
+          }
+        }
+      }
 
-      final uid = credential?.user?.uid ?? (localAccount['uid'] as String);
+      // 3. If neither Firebase nor local worked, reject
+      if (credential?.user == null && localAccount == null) {
+        throw Exception('No account found with this email. Please create an account first.');
+      }
+
+      final uid = credential?.user?.uid ?? (localAccount?['uid'] as String? ?? AuthService.generateDeterministicUid(email));
       
-      // 3. Load existing profile from Firestore/local — NEVER create a default one
+      // 4. Load existing profile from Firestore/local — NEVER create a default one
       //    if data exists remotely. getUserProfile tries Firestore first.
       var profile = await _userRepository.getUserProfile(uid);
 
@@ -205,7 +229,7 @@ class AuthProvider extends ChangeNotifier {
         final now = DateTime.now();
         profile = UserModel(
           uid: uid,
-          name: localAccount['name'] ?? email.split('@').first,
+          name: localAccount?['name'] ?? credential?.user?.displayName ?? email.split('@').first,
           email: email.trim().toLowerCase(),
           createdAt: now,
           updatedAt: now,
