@@ -35,7 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     if (success && mounted) {
       final uid = authProvider.firebaseUser?.uid ?? authProvider.userModel?.uid ?? 'guest_user';
-      await context.read<UserDataProvider>().loadUserData(uid);
+      context.read<UserDataProvider>().loadUserData(uid);
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/home');
       }

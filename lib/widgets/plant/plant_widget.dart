@@ -8,12 +8,14 @@ class PlantWidget extends StatelessWidget {
   final PlantType plantType;
   final double progress; // 0.0 to 1.0
   final double size;
+  final bool showStageName;
 
   const PlantWidget({
     super.key,
     required this.plantType,
     required this.progress,
     this.size = 120,
+    this.showStageName = true,
   });
 
   @override
@@ -36,6 +38,7 @@ class PlantWidget extends StatelessWidget {
         totalStages: stagesCount,
         size: size,
         progress: progress,
+        showStageName: showStageName,
       ),
     );
   }
@@ -47,6 +50,7 @@ class _TreeStageDisplay extends StatelessWidget {
   final int totalStages;
   final double size;
   final double progress;
+  final bool showStageName;
 
   const _TreeStageDisplay({
     super.key,
@@ -55,10 +59,23 @@ class _TreeStageDisplay extends StatelessWidget {
     required this.totalStages,
     required this.size,
     required this.progress,
+    this.showStageName = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (!showStageName) {
+      return CustomPaint(
+        size: Size(size, size),
+        painter: _TreePainter(
+          plantType: plantType,
+          stageIndex: stageIndex,
+          totalStages: totalStages,
+          progress: progress,
+        ),
+      );
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [

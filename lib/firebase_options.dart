@@ -57,11 +57,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBegpDiKQgnh_Nu1-PFYTMV0UW_zdnVRlc',
-    appId: '1:705710462644:web:86ebdc387603b5346a29e1',
-    messagingSenderId: '705710462644',
-    projectId: 'focusbloom-da987',
-    storageBucket: 'focusbloom-da987.firebasestorage.app',
+    apiKey: 'AIzaSyCvAObnetdsApux4epPy6J56DtE-x644kE',
+    appId: '1:74123284037:android:4a497fc29ecd6340ba5d2c',
+    messagingSenderId: '74123284037',
+    projectId: 'focusbloom123',
+    storageBucket: 'focusbloom123.firebasestorage.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

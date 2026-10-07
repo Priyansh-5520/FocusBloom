@@ -246,7 +246,13 @@ class FocusTimerProvider extends ChangeNotifier {
       totalPlants: existingPlants.length,
     );
 
-    // Commit to local repository and Firestore
+    _lastCompletedSession = session;
+    _lastReward = reward;
+    _lastNewAchievements = newAchievements;
+    _state = isCompleted ? TimerState.completed : TimerState.abandoned;
+    notifyListeners();
+
+    // Commit to local repository and Firestore in parallel
     await _repository.completeSession(
       uid: user.uid,
       session: session,
@@ -254,12 +260,6 @@ class FocusTimerProvider extends ChangeNotifier {
       plant: updatedPlant,
       newAchievementIds: newAchievements,
     );
-
-    _lastCompletedSession = session;
-    _lastReward = reward;
-    _lastNewAchievements = newAchievements;
-    _state = isCompleted ? TimerState.completed : TimerState.abandoned;
-    notifyListeners();
   }
 
   void reset() {

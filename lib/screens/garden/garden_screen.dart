@@ -57,27 +57,32 @@ class _GardenScreenState extends State<GardenScreen>
           children: [
             // Header
             _ForestHeader(
-              treeCount: grownPlants.length,
+              treeCount: grownPlants.isNotEmpty ? grownPlants.length : plants.length,
               totalSessions: sessions.length,
               showForest: _showForestView,
+              hasGrownTrees: grownPlants.isNotEmpty,
               onToggle: () =>
                   setState(() => _showForestView = !_showForestView),
             ),
             // Body
             Expanded(
-              child: grownPlants.isEmpty
-                  ? _EmptyForestView(entryAnimation: _entryController)
-                  : _showForestView
-                      ? _ForestSceneView(
+              child: _showForestView
+                  ? (grownPlants.isEmpty
+                      ? _EmptyForestView(
+                          entryAnimation: _entryController,
+                          onExploreCatalog: () =>
+                              setState(() => _showForestView = false),
+                        )
+                      : _ForestSceneView(
                           grownPlants: grownPlants,
                           sessions: sessions,
                           ambientController: _ambientController,
                           entryController: _entryController,
-                        )
-                      : _GridCollectionView(
-                          grownPlants: grownPlants,
-                          sessions: sessions,
-                        ),
+                        ))
+                  : _GridCollectionView(
+                      grownPlants: grownPlants.isNotEmpty ? grownPlants : plants,
+                      sessions: sessions,
+                    ),
             ),
           ],
         ),
@@ -93,12 +98,14 @@ class _ForestHeader extends StatelessWidget {
   final int treeCount;
   final int totalSessions;
   final bool showForest;
+  final bool hasGrownTrees;
   final VoidCallback onToggle;
 
   const _ForestHeader({
     required this.treeCount,
     required this.totalSessions,
     required this.showForest,
+    required this.hasGrownTrees,
     required this.onToggle,
   });
 
@@ -133,44 +140,43 @@ class _ForestHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      treeCount == 0
-                          ? 'Plant your first tree to begin'
+                      !hasGrownTrees
+                          ? '$treeCount starter species · Ready to plant'
                           : '$treeCount tree${treeCount == 1 ? '' : ' species'} · $totalSessions session${totalSessions == 1 ? '' : 's'}',
                       style: TextStyle(
                         fontFamily: 'Nunito',
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: Colors.white.withOpacity(0.6),
+                        color: Colors.white.withValues(alpha: 0.6),
                       ),
                     ),
                   ],
                 ),
               ),
-              // View toggle
-              if (treeCount > 0)
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: Colors.white.withOpacity(0.15), width: 1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _ToggleButton(
-                        icon: Icons.park_rounded,
-                        isActive: showForest,
-                        onTap: showForest ? null : onToggle,
-                      ),
-                      _ToggleButton(
-                        icon: Icons.grid_view_rounded,
-                        isActive: !showForest,
-                        onTap: showForest ? onToggle : null,
-                      ),
-                    ],
-                  ),
+              // View toggle - always available
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.15), width: 1),
                 ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _ToggleButton(
+                      icon: Icons.park_rounded,
+                      isActive: showForest,
+                      onTap: showForest ? null : onToggle,
+                    ),
+                    _ToggleButton(
+                      icon: Icons.grid_view_rounded,
+                      isActive: !showForest,
+                      onTap: showForest ? onToggle : null,
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
@@ -199,14 +205,14 @@ class _ToggleButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isActive
-              ? AppColors.primary.withOpacity(0.6)
+              ? AppColors.primary.withValues(alpha: 0.6)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(
           icon,
           size: 20,
-          color: isActive ? Colors.white : Colors.white.withOpacity(0.4),
+          color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.4),
         ),
       ),
     );
@@ -218,8 +224,12 @@ class _ToggleButton extends StatelessWidget {
 // ============================================================================
 class _EmptyForestView extends StatelessWidget {
   final AnimationController entryAnimation;
+  final VoidCallback? onExploreCatalog;
 
-  const _EmptyForestView({required this.entryAnimation});
+  const _EmptyForestView({
+    required this.entryAnimation,
+    this.onExploreCatalog,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -233,22 +243,22 @@ class _EmptyForestView extends StatelessWidget {
             children: [
               // Decorative illustration area
               Container(
-                width: 160,
-                height: 160,
+                width: 140,
+                height: 140,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      AppColors.primary.withOpacity(0.15),
+                      AppColors.primary.withValues(alpha: 0.2),
                       Colors.transparent,
                     ],
                   ),
                 ),
                 child: const Center(
-                  child: Text('🌱', style: TextStyle(fontSize: 72)),
+                  child: Text('🌱', style: TextStyle(fontSize: 64)),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               const Text(
                 'Your forest awaits',
                 style: TextStyle(
@@ -266,11 +276,11 @@ class _EmptyForestView extends StatelessWidget {
                   fontFamily: 'Nunito',
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: Colors.white.withOpacity(0.55),
+                  color: Colors.white.withValues(alpha: 0.65),
                   height: 1.5,
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
               ElevatedButton.icon(
                 onPressed: () {
                   Navigator.of(context).pushNamed('/focus');
@@ -290,6 +300,26 @@ class _EmptyForestView extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onExploreCatalog != null) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: onExploreCatalog,
+                  icon: const Icon(Icons.grid_view_rounded, size: 18),
+                  label: const Text(
+                    'Explore Tree Collection',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white.withValues(alpha: 0.9),
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -403,6 +433,7 @@ class _ForestSceneView extends StatelessWidget {
                             plantType: plantType,
                             progress: 1.0,
                             size: treeSize,
+                            showStageName: false,
                           ),
                           // Small shadow
                           Container(
@@ -410,7 +441,7 @@ class _ForestSceneView extends StatelessWidget {
                             height: 6,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(3),
-                              color: Colors.black.withOpacity(0.15),
+                              color: Colors.black.withValues(alpha: 0.15),
                             ),
                           ),
                         ],
@@ -431,7 +462,7 @@ class _ForestSceneView extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
+                        color: Colors.black.withValues(alpha: 0.35),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -440,7 +471,7 @@ class _ForestSceneView extends StatelessWidget {
                           fontFamily: 'Nunito',
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white.withOpacity(0.7),
+                          color: Colors.white.withValues(alpha: 0.7),
                         ),
                       ),
                     ),
@@ -473,14 +504,8 @@ class _ForestSceneView extends StatelessWidget {
     }
 
     // Sort by Y so trees in front overlap those in back
-    final indexed = List.generate(count, (i) => i);
-    indexed.sort((a, b) => positions[a].dy.compareTo(positions[b].dy));
-
-    final sorted = List<Offset>.filled(count, Offset.zero);
-    for (int i = 0; i < count; i++) {
-      sorted[indexed[i]] = positions[indexed[i]];
-    }
-    return sorted;
+    positions.sort((a, b) => a.dy.compareTo(b.dy));
+    return positions;
   }
 
   List<Widget> _buildGroundDecorations(double w, double h) {
@@ -716,6 +741,7 @@ class _GridCollectionView extends StatelessWidget {
                   plantType: plantType,
                   progress: 1.0,
                   size: 88,
+                  showStageName: false,
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -750,7 +776,7 @@ class _GridCollectionView extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '×${plant.sessionCount}',
+                      plant.sessionCount > 0 ? '×${plant.sessionCount}' : 'Ready',
                       style: TextStyle(
                         fontFamily: 'Nunito',
                         fontSize: 11,

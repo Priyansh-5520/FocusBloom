@@ -98,19 +98,22 @@ class _FocusActiveViewState extends State<_FocusActiveView>
     );
   }
 
+  bool _isRedirecting = false;
+
   Future<void> _handleEnd() async {
     final confirm = await _showEndSessionDialog();
-    if (confirm == true && mounted) {
+    if (confirm == true && mounted && !_isRedirecting) {
+      _isRedirecting = true;
       final timer = context.read<FocusTimerProvider>();
       final auth = context.read<AuthProvider>();
       final userData = context.read<UserDataProvider>();
       final user = auth.userModel ?? userData.user;
       if (user != null) {
+        final nav = Navigator.of(context);
         await timer.abandonSession(user);
         if (!mounted) return;
-        final nav = Navigator.of(context);
-        await auth.refreshUserModel();
-        await userData.refresh(user.uid);
+        auth.refreshUserModel();
+        userData.loadUserData(user.uid);
         nav.pushReplacement(
           MaterialPageRoute(builder: (_) => const FocusResultScreen()),
         );
@@ -126,14 +129,15 @@ class _FocusActiveViewState extends State<_FocusActiveView>
     final user = auth.userModel ?? userData.user;
 
     // Auto-complete when timer reaches 0
-    if (timer.remainingSeconds == 0 && timer.state == TimerState.running) {
+    if (timer.remainingSeconds == 0 && timer.state == TimerState.running && !_isRedirecting) {
+      _isRedirecting = true;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (user != null) {
+        if (user != null && mounted) {
+          final nav = Navigator.of(context);
           await timer.completeSession(user);
           if (!mounted) return;
-          final nav = Navigator.of(context);
-          await auth.refreshUserModel();
-          await userData.refresh(user.uid);
+          auth.refreshUserModel();
+          userData.loadUserData(user.uid);
           nav.pushReplacement(
             MaterialPageRoute(builder: (_) => const FocusResultScreen()),
           );

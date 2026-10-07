@@ -66,32 +66,45 @@ class UserRepository {
     });
   }
 
-  /// Fetch the user profile.
+  /// Fetch the user profile (Cache-first for instant login, background sync).
   Future<UserModel?> getUserProfile(String uid) async {
-    // Try Firestore first if available (with timeout so it never hangs)
+    // 1. Check local cache first for instant loading
+    UserModel? localUser;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_profileKey(uid));
+      if (raw != null && raw.isNotEmpty) {
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        localUser = UserModel.fromMap(map);
+      }
+    } catch (e) {
+      debugPrint('Local profile load error: $e');
+    }
+
+    if (localUser != null) {
+      // Background sync from Firestore (never blocks UI)
+      _userDoc(uid)?.get().then((doc) async {
+        if (doc.exists) {
+          final user = UserModel.fromFirestore(doc);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_profileKey(uid), jsonEncode(user.toMap()));
+        }
+      }).catchError((_) {});
+      return localUser;
+    }
+
+    // 2. Fallback to Firestore with crisp timeout if no local cache (new device)
     try {
       final doc = await _userDoc(uid)?.get()
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(milliseconds: 3000));
       if (doc != null && doc.exists) {
         final user = UserModel.fromFirestore(doc);
-        // Cache locally
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_profileKey(uid), jsonEncode(user.toMap()));
         return user;
       }
     } catch (_) {}
 
-    // Fallback to local storage
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_profileKey(uid));
-      if (raw != null && raw.isNotEmpty) {
-        final map = jsonDecode(raw) as Map<String, dynamic>;
-        return UserModel.fromMap(map);
-      }
-    } catch (e) {
-      debugPrint('Local profile load error: $e');
-    }
     return null;
   }
 
@@ -170,32 +183,53 @@ class UserRepository {
     return session.id;
   }
 
-  /// Fetch all sessions, ordered by start time descending.
+  /// Fetch all sessions, ordered by start time descending (Cache-first).
   Future<List<FocusSessionModel>> getSessions(String uid, {int limit = 50}) async {
-    // Try Firestore
-    try {
-      final query = await _sessionsCol(uid)
-          ?.orderBy('startedAt', descending: true)
-          .limit(limit)
-          .get();
-      if (query != null && query.docs.isNotEmpty) {
-        return query.docs.map((d) => FocusSessionModel.fromFirestore(d)).toList();
-      }
-    } catch (_) {}
-
-    // Fallback to local
+    // 1. Fast local cache check
+    List<FocusSessionModel> local = [];
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_sessionsKey(uid));
       if (raw != null && raw.isNotEmpty) {
         final list = jsonDecode(raw) as List<dynamic>;
-        final sessions = list
+        local = list
             .map((item) => FocusSessionModel.fromMap(item as Map<String, dynamic>))
             .toList();
-        sessions.sort((a, b) => b.startedAt.compareTo(a.startedAt));
-        return sessions.take(limit).toList();
+        local.sort((a, b) => b.startedAt.compareTo(a.startedAt));
       }
     } catch (_) {}
+
+    if (local.isNotEmpty) {
+      // Background sync from Firestore without blocking
+      _sessionsCol(uid)
+          ?.orderBy('startedAt', descending: true)
+          .limit(limit)
+          .get()
+          .then((query) async {
+        if (query.docs.isNotEmpty) {
+          final remote = query.docs.map((d) => FocusSessionModel.fromFirestore(d)).toList();
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_sessionsKey(uid), jsonEncode(remote.map((s) => s.toMap()).toList()));
+        }
+      }).catchError((_) {});
+      return local.take(limit).toList();
+    }
+
+    // 2. Fallback to Firestore with 2.5s timeout if local is empty
+    try {
+      final query = await _sessionsCol(uid)
+          ?.orderBy('startedAt', descending: true)
+          .limit(limit)
+          .get()
+          .timeout(const Duration(milliseconds: 2500));
+      if (query != null && query.docs.isNotEmpty) {
+        final remote = query.docs.map((d) => FocusSessionModel.fromFirestore(d)).toList();
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_sessionsKey(uid), jsonEncode(remote.map((s) => s.toMap()).toList()));
+        return remote;
+      }
+    } catch (_) {}
+
     return [];
   }
 
@@ -229,27 +263,44 @@ class UserRepository {
   // PLANTS / TREES
   // =========================================================================
 
-  /// Get all user plants.
+  /// Get all user plants (Cache-first).
   Future<List<UserPlant>> getUserPlants(String uid) async {
-    // Try Firestore
-    try {
-      final query = await _plantsCol(uid)?.get();
-      if (query != null && query.docs.isNotEmpty) {
-        return query.docs.map((d) => UserPlant.fromFirestore(d)).toList();
-      }
-    } catch (_) {}
-
-    // Fallback to local
+    // 1. Fast local cache check
+    List<UserPlant> localPlants = [];
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_plantsKey(uid));
       if (raw != null && raw.isNotEmpty) {
         final list = jsonDecode(raw) as List<dynamic>;
-        return list
+        localPlants = list
             .map((item) => UserPlant.fromMap(item as Map<String, dynamic>))
             .toList();
       }
     } catch (_) {}
+
+    if (localPlants.isNotEmpty) {
+      // Sync from Firestore in background
+      _plantsCol(uid)?.get().then((query) async {
+        if (query.docs.isNotEmpty) {
+          final remote = query.docs.map((d) => UserPlant.fromFirestore(d)).toList();
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_plantsKey(uid), jsonEncode(remote.map((p) => p.toMap()).toList()));
+        }
+      }).catchError((_) {});
+      return localPlants;
+    }
+
+    // 2. Fallback to Firestore with 2.5s timeout if local is empty
+    try {
+      final query = await _plantsCol(uid)?.get().timeout(const Duration(milliseconds: 2500));
+      if (query != null && query.docs.isNotEmpty) {
+        final remote = query.docs.map((d) => UserPlant.fromFirestore(d)).toList();
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_plantsKey(uid), jsonEncode(remote.map((p) => p.toMap()).toList()));
+        return remote;
+      }
+    } catch (_) {}
+
     return [];
   }
 
@@ -304,27 +355,44 @@ class UserRepository {
   // ACHIEVEMENTS
   // =========================================================================
 
-  /// Get all unlocked achievements.
+  /// Get all unlocked achievements (Cache-first).
   Future<List<UserAchievement>> getUserAchievements(String uid) async {
-    // Try Firestore
-    try {
-      final query = await _achievementsCol(uid)?.get();
-      if (query != null && query.docs.isNotEmpty) {
-        return query.docs.map((d) => UserAchievement.fromFirestore(d)).toList();
-      }
-    } catch (_) {}
-
-    // Fallback to local
+    // 1. Fast local cache check
+    List<UserAchievement> local = [];
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_achievementsKey(uid));
       if (raw != null && raw.isNotEmpty) {
         final list = jsonDecode(raw) as List<dynamic>;
-        return list
+        local = list
             .map((item) => UserAchievement.fromMap(item as Map<String, dynamic>))
             .toList();
       }
     } catch (_) {}
+
+    if (local.isNotEmpty) {
+      // Sync from Firestore in background
+      _achievementsCol(uid)?.get().then((query) async {
+        if (query.docs.isNotEmpty) {
+          final remote = query.docs.map((d) => UserAchievement.fromFirestore(d)).toList();
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_achievementsKey(uid), jsonEncode(remote.map((a) => a.toMap()).toList()));
+        }
+      }).catchError((_) {});
+      return local;
+    }
+
+    // 2. Fallback to Firestore with 2.5s timeout if local is empty
+    try {
+      final query = await _achievementsCol(uid)?.get().timeout(const Duration(milliseconds: 2500));
+      if (query != null && query.docs.isNotEmpty) {
+        final remote = query.docs.map((d) => UserAchievement.fromFirestore(d)).toList();
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_achievementsKey(uid), jsonEncode(remote.map((a) => a.toMap()).toList()));
+        return remote;
+      }
+    } catch (_) {}
+
     return [];
   }
 
@@ -378,27 +446,44 @@ class UserRepository {
   // INVENTORY
   // =========================================================================
 
-  /// Get all inventory items.
+  /// Get all inventory items (Cache-first).
   Future<List<InventoryItem>> getInventory(String uid) async {
-    // Try Firestore
-    try {
-      final query = await _inventoryCol(uid)?.get();
-      if (query != null && query.docs.isNotEmpty) {
-        return query.docs.map((d) => InventoryItem.fromFirestore(d)).toList();
-      }
-    } catch (_) {}
-
-    // Fallback to local
+    // 1. Fast local cache check
+    List<InventoryItem> local = [];
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_inventoryKey(uid));
       if (raw != null && raw.isNotEmpty) {
         final list = jsonDecode(raw) as List<dynamic>;
-        return list
+        local = list
             .map((item) => InventoryItem.fromMap(item as Map<String, dynamic>))
             .toList();
       }
     } catch (_) {}
+
+    if (local.isNotEmpty) {
+      // Sync from Firestore in background
+      _inventoryCol(uid)?.get().then((query) async {
+        if (query.docs.isNotEmpty) {
+          final remote = query.docs.map((d) => InventoryItem.fromFirestore(d)).toList();
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_inventoryKey(uid), jsonEncode(remote.map((i) => i.toMap()).toList()));
+        }
+      }).catchError((_) {});
+      return local;
+    }
+
+    // 2. Fallback to Firestore with 2.5s timeout if local is empty
+    try {
+      final query = await _inventoryCol(uid)?.get().timeout(const Duration(milliseconds: 2500));
+      if (query != null && query.docs.isNotEmpty) {
+        final remote = query.docs.map((d) => InventoryItem.fromFirestore(d)).toList();
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_inventoryKey(uid), jsonEncode(remote.map((i) => i.toMap()).toList()));
+        return remote;
+      }
+    } catch (_) {}
+
     return [];
   }
 
@@ -464,32 +549,35 @@ class UserRepository {
       await unlockAchievement(uid, id);
     }
 
-    // 5. If Firestore available, run atomic batch
+    // 5. If Firestore available, commit atomic batch in background (non-blocking)
     final db = _db;
-    if (db == null) return;
-    try {
-      final batch = db.batch();
-      final userDoc = _userDoc(uid);
-      final sessionsCol = _sessionsCol(uid);
-      final plantsCol = _plantsCol(uid);
-      final achievementsCol = _achievementsCol(uid);
+    if (db != null) {
+      try {
+        final batch = db.batch();
+        final userDoc = _userDoc(uid);
+        final sessionsCol = _sessionsCol(uid);
+        final plantsCol = _plantsCol(uid);
+        final achievementsCol = _achievementsCol(uid);
 
-      if (userDoc == null || sessionsCol == null || plantsCol == null || achievementsCol == null) return;
+        if (userDoc != null && sessionsCol != null && plantsCol != null && achievementsCol != null) {
+          batch.set(sessionsCol.doc(session.id), session.toFirestore());
+          batch.set(userDoc, updatedUser.toFirestore(), SetOptions(merge: true));
+          batch.set(plantsCol.doc(plant.plantTypeId), plant.toFirestore(), SetOptions(merge: true));
 
-      batch.set(sessionsCol.doc(session.id), session.toFirestore());
-      batch.set(userDoc, updatedUser.toFirestore(), SetOptions(merge: true));
-      batch.set(plantsCol.doc(plant.plantTypeId), plant.toFirestore(), SetOptions(merge: true));
+          for (final achievementId in newAchievementIds) {
+            batch.set(achievementsCol.doc(achievementId), {
+              'achievementId': achievementId,
+              'unlockedAt': FieldValue.serverTimestamp(),
+            });
+          }
 
-      for (final achievementId in newAchievementIds) {
-        batch.set(achievementsCol.doc(achievementId), {
-          'achievementId': achievementId,
-          'unlockedAt': FieldValue.serverTimestamp(),
-        });
+          batch.commit().timeout(const Duration(milliseconds: 3500)).catchError((e) {
+            debugPrint('Firestore batch commit notice: $e');
+          });
+        }
+      } catch (e) {
+        debugPrint('Firestore batch setup notice: $e');
       }
-
-      await batch.commit();
-    } catch (e) {
-      debugPrint('Firestore batch commit notice: $e');
     }
   }
 }
