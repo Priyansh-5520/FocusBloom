@@ -188,16 +188,19 @@ class FocusTimerProvider extends ChangeNotifier {
       completedAt: now,
     );
 
+    // Set result state IMMEDIATELY so UI can display rewards without waiting for storage I/O
+    _lastCompletedSession = session;
+    _lastReward = reward;
+    _state = isCompleted ? TimerState.completed : TimerState.abandoned;
+    notifyListeners();
+
     // Update plant
-    final hasPrevPlant = await _repository.hasPlant(user.uid, _plantTypeId);
     final existingPlants = await _repository.getUserPlants(user.uid);
+    final plantIdx = existingPlants.indexWhere((p) => p.plantTypeId == _plantTypeId);
 
     UserPlant updatedPlant;
-    if (hasPrevPlant) {
-      final existing = existingPlants.firstWhere(
-        (p) => p.plantTypeId == _plantTypeId,
-        orElse: () => UserPlantFactory.create(_plantTypeId),
-      );
+    if (plantIdx >= 0) {
+      final existing = existingPlants[plantIdx];
       final plantType = PlantData.getById(_plantTypeId);
       final newXP = existing.growthXP + reward.xp;
       final newStage = plantType?.getGrowthStageIndex(isCompleted ? 1.0 : completionPct) ?? 0;
@@ -246,10 +249,7 @@ class FocusTimerProvider extends ChangeNotifier {
       totalPlants: existingPlants.length,
     );
 
-    _lastCompletedSession = session;
-    _lastReward = reward;
     _lastNewAchievements = newAchievements;
-    _state = isCompleted ? TimerState.completed : TimerState.abandoned;
     notifyListeners();
 
     // Commit to local repository and Firestore in parallel

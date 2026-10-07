@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
+import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/user_data_provider.dart';
 import '../../providers/focus_timer_provider.dart';
@@ -107,14 +108,27 @@ class _FocusActiveViewState extends State<_FocusActiveView>
       final timer = context.read<FocusTimerProvider>();
       final auth = context.read<AuthProvider>();
       final userData = context.read<UserDataProvider>();
-      final user = auth.userModel ?? userData.user;
-      if (user != null) {
-        final nav = Navigator.of(context);
-        await timer.abandonSession(user);
-        if (!mounted) return;
+      final effectiveUser = auth.userModel ??
+          userData.user ??
+          UserModel(
+            uid: auth.firebaseUser?.uid ?? 'local_user',
+            name: auth.firebaseUser?.displayName ?? 'Focus Hero',
+            email: auth.firebaseUser?.email ?? 'hero@focusbloom.app',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+
+      // Fire-and-forget: save session data in background
+      timer.abandonSession(effectiveUser).then((_) {
         auth.refreshUserModel();
-        userData.loadUserData(user.uid);
-        nav.pushReplacement(
+        if (effectiveUser.uid.isNotEmpty) userData.loadUserData(effectiveUser.uid);
+      }).catchError((e) {
+        debugPrint('Abandon session save error (non-blocking): $e');
+      });
+
+      // Navigate NOW
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const FocusResultScreen()),
         );
       }
@@ -126,19 +140,31 @@ class _FocusActiveViewState extends State<_FocusActiveView>
     final timer = context.watch<FocusTimerProvider>();
     final auth = context.watch<AuthProvider>();
     final userData = context.watch<UserDataProvider>();
-    final user = auth.userModel ?? userData.user;
+    final effectiveUser = auth.userModel ??
+        userData.user ??
+        UserModel(
+          uid: auth.firebaseUser?.uid ?? 'local_user',
+          name: auth.firebaseUser?.displayName ?? 'Focus Hero',
+          email: auth.firebaseUser?.email ?? 'hero@focusbloom.app',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
 
-    // Auto-complete when timer reaches 0
+    // Auto-complete when timer reaches 0 — navigate IMMEDIATELY, don't wait for repo
     if (timer.remainingSeconds == 0 && timer.state == TimerState.running && !_isRedirecting) {
       _isRedirecting = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (user != null && mounted) {
-          final nav = Navigator.of(context);
-          await timer.completeSession(user);
-          if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        // Fire-and-forget: completeSession saves data in the background
+        timer.completeSession(effectiveUser).then((_) {
           auth.refreshUserModel();
-          userData.loadUserData(user.uid);
-          nav.pushReplacement(
+          if (effectiveUser.uid.isNotEmpty) userData.loadUserData(effectiveUser.uid);
+        }).catchError((e) {
+          debugPrint('Session save error (non-blocking): $e');
+        });
+        // Navigate NOW — don't wait for data to persist
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const FocusResultScreen()),
           );
         }

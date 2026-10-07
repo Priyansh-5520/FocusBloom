@@ -157,28 +157,28 @@ class UserRepository {
   // FOCUS SESSIONS
   // =========================================================================
 
-  /// Save a completed or abandoned focus session.
+  /// Save a completed or abandoned focus session (pure instant local save + background Firestore sync).
   Future<String> saveSession(String uid, FocusSessionModel session) async {
-    // 1. Save locally
+    // 1. Save locally instantly
     try {
       final prefs = await SharedPreferences.getInstance();
-      final list = await getSessions(uid);
+      final raw = prefs.getString(_sessionsKey(uid));
+      List<FocusSessionModel> list = [];
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw) as List<dynamic>;
+        list = decoded.map((item) => FocusSessionModel.fromMap(item as Map<String, dynamic>)).toList();
+      }
       list.removeWhere((s) => s.id == session.id);
       list.insert(0, session);
-      final jsonList = list.map((s) => s.toMap()).toList();
-      await prefs.setString(_sessionsKey(uid), jsonEncode(jsonList));
+      await prefs.setString(_sessionsKey(uid), jsonEncode(list.map((s) => s.toMap()).toList()));
     } catch (e) {
       debugPrint('Local session save error: $e');
     }
 
-    // 2. Save to Firestore
-    try {
-      final docRef = _sessionsCol(uid)?.doc(session.id);
-      if (docRef != null) {
-        await docRef.set(session.toFirestore());
-        return docRef.id;
-      }
-    } catch (_) {}
+    // 2. Save to Firestore in background
+    _sessionsCol(uid)?.doc(session.id).set(session.toFirestore()).catchError((e) {
+      debugPrint('Firestore session save notice: $e');
+    });
 
     return session.id;
   }
@@ -187,19 +187,23 @@ class UserRepository {
   Future<List<FocusSessionModel>> getSessions(String uid, {int limit = 50}) async {
     // 1. Fast local cache check
     List<FocusSessionModel> local = [];
+    bool hasLocalCache = false;
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_sessionsKey(uid));
-      if (raw != null && raw.isNotEmpty) {
-        final list = jsonDecode(raw) as List<dynamic>;
-        local = list
-            .map((item) => FocusSessionModel.fromMap(item as Map<String, dynamic>))
-            .toList();
-        local.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+      if (raw != null) {
+        hasLocalCache = true;
+        if (raw.isNotEmpty) {
+          final list = jsonDecode(raw) as List<dynamic>;
+          local = list
+              .map((item) => FocusSessionModel.fromMap(item as Map<String, dynamic>))
+              .toList();
+          local.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+        }
       }
     } catch (_) {}
 
-    if (local.isNotEmpty) {
+    if (hasLocalCache) {
       // Background sync from Firestore without blocking
       _sessionsCol(uid)
           ?.orderBy('startedAt', descending: true)
@@ -215,13 +219,13 @@ class UserRepository {
       return local.take(limit).toList();
     }
 
-    // 2. Fallback to Firestore with 2.5s timeout if local is empty
+    // 2. Fallback to Firestore with 1.5s timeout only if no local cache exists
     try {
       final query = await _sessionsCol(uid)
           ?.orderBy('startedAt', descending: true)
           .limit(limit)
           .get()
-          .timeout(const Duration(milliseconds: 2500));
+          .timeout(const Duration(milliseconds: 1500));
       if (query != null && query.docs.isNotEmpty) {
         final remote = query.docs.map((d) => FocusSessionModel.fromFirestore(d)).toList();
         final prefs = await SharedPreferences.getInstance();
@@ -267,18 +271,22 @@ class UserRepository {
   Future<List<UserPlant>> getUserPlants(String uid) async {
     // 1. Fast local cache check
     List<UserPlant> localPlants = [];
+    bool hasLocalCache = false;
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_plantsKey(uid));
-      if (raw != null && raw.isNotEmpty) {
-        final list = jsonDecode(raw) as List<dynamic>;
-        localPlants = list
-            .map((item) => UserPlant.fromMap(item as Map<String, dynamic>))
-            .toList();
+      if (raw != null) {
+        hasLocalCache = true;
+        if (raw.isNotEmpty) {
+          final list = jsonDecode(raw) as List<dynamic>;
+          localPlants = list
+              .map((item) => UserPlant.fromMap(item as Map<String, dynamic>))
+              .toList();
+        }
       }
     } catch (_) {}
 
-    if (localPlants.isNotEmpty) {
+    if (hasLocalCache) {
       // Sync from Firestore in background
       _plantsCol(uid)?.get().then((query) async {
         if (query.docs.isNotEmpty) {
@@ -290,9 +298,9 @@ class UserRepository {
       return localPlants;
     }
 
-    // 2. Fallback to Firestore with 2.5s timeout if local is empty
+    // 2. Fallback to Firestore with 1.5s timeout only if no local cache
     try {
-      final query = await _plantsCol(uid)?.get().timeout(const Duration(milliseconds: 2500));
+      final query = await _plantsCol(uid)?.get().timeout(const Duration(milliseconds: 1500));
       if (query != null && query.docs.isNotEmpty) {
         final remote = query.docs.map((d) => UserPlant.fromFirestore(d)).toList();
         final prefs = await SharedPreferences.getInstance();
@@ -317,12 +325,17 @@ class UserRepository {
     return Stream.fromFuture(getUserPlants(uid));
   }
 
-  /// Add or update a plant/tree in the user's collection.
+  /// Add or update a plant/tree in the user's collection (instant local + background Firestore).
   Future<void> saveUserPlant(String uid, UserPlant plant) async {
-    // 1. Save locally
+    // 1. Save locally instantly
     try {
       final prefs = await SharedPreferences.getInstance();
-      final plants = await getUserPlants(uid);
+      final raw = prefs.getString(_plantsKey(uid));
+      List<UserPlant> plants = [];
+      if (raw != null && raw.isNotEmpty) {
+        final list = jsonDecode(raw) as List<dynamic>;
+        plants = list.map((item) => UserPlant.fromMap(item as Map<String, dynamic>)).toList();
+      }
       final index = plants.indexWhere((p) => p.plantTypeId == plant.plantTypeId);
       if (index >= 0) {
         plants[index] = plant;
@@ -339,7 +352,6 @@ class UserRepository {
     _plantsCol(uid)
         ?.doc(plant.plantTypeId)
         .set(plant.toFirestore(), SetOptions(merge: true))
-        .timeout(const Duration(seconds: 10))
         .catchError((e) {
       debugPrint('Firestore plant save error: $e');
     });
@@ -359,18 +371,22 @@ class UserRepository {
   Future<List<UserAchievement>> getUserAchievements(String uid) async {
     // 1. Fast local cache check
     List<UserAchievement> local = [];
+    bool hasLocalCache = false;
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_achievementsKey(uid));
-      if (raw != null && raw.isNotEmpty) {
-        final list = jsonDecode(raw) as List<dynamic>;
-        local = list
-            .map((item) => UserAchievement.fromMap(item as Map<String, dynamic>))
-            .toList();
+      if (raw != null) {
+        hasLocalCache = true;
+        if (raw.isNotEmpty) {
+          final list = jsonDecode(raw) as List<dynamic>;
+          local = list
+              .map((item) => UserAchievement.fromMap(item as Map<String, dynamic>))
+              .toList();
+        }
       }
     } catch (_) {}
 
-    if (local.isNotEmpty) {
+    if (hasLocalCache) {
       // Sync from Firestore in background
       _achievementsCol(uid)?.get().then((query) async {
         if (query.docs.isNotEmpty) {
@@ -382,9 +398,9 @@ class UserRepository {
       return local;
     }
 
-    // 2. Fallback to Firestore with 2.5s timeout if local is empty
+    // 2. Fallback to Firestore with 1.5s timeout only if no local cache
     try {
-      final query = await _achievementsCol(uid)?.get().timeout(const Duration(milliseconds: 2500));
+      final query = await _achievementsCol(uid)?.get().timeout(const Duration(milliseconds: 1500));
       if (query != null && query.docs.isNotEmpty) {
         final remote = query.docs.map((d) => UserAchievement.fromFirestore(d)).toList();
         final prefs = await SharedPreferences.getInstance();
@@ -409,17 +425,22 @@ class UserRepository {
     return Stream.fromFuture(getUserAchievements(uid));
   }
 
-  /// Unlock an achievement.
+  /// Unlock an achievement (instant local + background Firestore).
   Future<void> unlockAchievement(String uid, String achievementId) async {
     final achievement = UserAchievement(
       achievementId: achievementId,
       unlockedAt: DateTime.now(),
     );
 
-    // Save locally
+    // Save locally instantly
     try {
       final prefs = await SharedPreferences.getInstance();
-      final achievements = await getUserAchievements(uid);
+      final raw = prefs.getString(_achievementsKey(uid));
+      List<UserAchievement> achievements = [];
+      if (raw != null && raw.isNotEmpty) {
+        final list = jsonDecode(raw) as List<dynamic>;
+        achievements = list.map((item) => UserAchievement.fromMap(item as Map<String, dynamic>)).toList();
+      }
       if (!achievements.any((a) => a.achievementId == achievementId)) {
         achievements.add(achievement);
         final jsonList = achievements.map((a) => a.toMap()).toList();
@@ -427,13 +448,11 @@ class UserRepository {
       }
     } catch (_) {}
 
-    // Save Firestore
-    try {
-      await _achievementsCol(uid)?.doc(achievementId).set({
-        'achievementId': achievementId,
-        'unlockedAt': FieldValue.serverTimestamp(),
-      });
-    } catch (_) {}
+    // Save Firestore in background
+    _achievementsCol(uid)?.doc(achievementId).set({
+      'achievementId': achievementId,
+      'unlockedAt': FieldValue.serverTimestamp(),
+    }).catchError((_) {});
   }
 
   /// Check if an achievement is already unlocked.
@@ -450,18 +469,22 @@ class UserRepository {
   Future<List<InventoryItem>> getInventory(String uid) async {
     // 1. Fast local cache check
     List<InventoryItem> local = [];
+    bool hasLocalCache = false;
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_inventoryKey(uid));
-      if (raw != null && raw.isNotEmpty) {
-        final list = jsonDecode(raw) as List<dynamic>;
-        local = list
-            .map((item) => InventoryItem.fromMap(item as Map<String, dynamic>))
-            .toList();
+      if (raw != null) {
+        hasLocalCache = true;
+        if (raw.isNotEmpty) {
+          final list = jsonDecode(raw) as List<dynamic>;
+          local = list
+              .map((item) => InventoryItem.fromMap(item as Map<String, dynamic>))
+              .toList();
+        }
       }
     } catch (_) {}
 
-    if (local.isNotEmpty) {
+    if (hasLocalCache) {
       // Sync from Firestore in background
       _inventoryCol(uid)?.get().then((query) async {
         if (query.docs.isNotEmpty) {
@@ -473,9 +496,9 @@ class UserRepository {
       return local;
     }
 
-    // 2. Fallback to Firestore with 2.5s timeout if local is empty
+    // 2. Fallback to Firestore with 1.5s timeout only if no local cache
     try {
-      final query = await _inventoryCol(uid)?.get().timeout(const Duration(milliseconds: 2500));
+      final query = await _inventoryCol(uid)?.get().timeout(const Duration(milliseconds: 1500));
       if (query != null && query.docs.isNotEmpty) {
         final remote = query.docs.map((d) => InventoryItem.fromFirestore(d)).toList();
         final prefs = await SharedPreferences.getInstance();
@@ -500,12 +523,17 @@ class UserRepository {
     return Stream.fromFuture(getInventory(uid));
   }
 
-  /// Add an item to inventory.
+  /// Add an item to inventory (instant local + background Firestore).
   Future<void> addInventoryItem(String uid, InventoryItem item) async {
-    // Save locally
+    // Save locally instantly
     try {
       final prefs = await SharedPreferences.getInstance();
-      final items = await getInventory(uid);
+      final raw = prefs.getString(_inventoryKey(uid));
+      List<InventoryItem> items = [];
+      if (raw != null && raw.isNotEmpty) {
+        final list = jsonDecode(raw) as List<dynamic>;
+        items = list.map((item) => InventoryItem.fromMap(item as Map<String, dynamic>)).toList();
+      }
       final idx = items.indexWhere((i) => i.itemId == item.itemId);
       if (idx >= 0) {
         items[idx] = item;
@@ -516,10 +544,8 @@ class UserRepository {
       await prefs.setString(_inventoryKey(uid), jsonEncode(jsonList));
     } catch (_) {}
 
-    // Save Firestore
-    try {
-      await _inventoryCol(uid)?.doc(item.itemId).set(item.toFirestore());
-    } catch (_) {}
+    // Save Firestore in background
+    _inventoryCol(uid)?.doc(item.itemId).set(item.toFirestore()).catchError((_) {});
   }
 
   /// Check if an item is owned.

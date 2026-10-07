@@ -193,18 +193,16 @@ class FocusResultScreen extends StatelessWidget {
 
               // Action buttons
               ElevatedButton.icon(
-                onPressed: () async {
+                onPressed: () {
                   final auth = context.read<AuthProvider>();
                   final userData = context.read<UserDataProvider>();
                   final uid = auth.firebaseUser?.uid ?? auth.userModel?.uid;
                   if (uid != null) {
-                    await auth.refreshUserModel();
-                    await userData.refresh(uid);
+                    auth.refreshUserModel();
+                    userData.refresh(uid);
                   }
                   timer.reset();
-                  if (context.mounted) {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  }
+                  Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 icon: const Icon(Icons.check_rounded),
                 label: const Text('Done', style: TextStyle(fontWeight: FontWeight.w800)),
@@ -216,18 +214,16 @@ class FocusResultScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: () async {
+                onPressed: () {
                   final auth = context.read<AuthProvider>();
                   final userData = context.read<UserDataProvider>();
                   final uid = auth.firebaseUser?.uid ?? auth.userModel?.uid;
                   if (uid != null) {
-                    await auth.refreshUserModel();
-                    await userData.refresh(uid);
+                    auth.refreshUserModel();
+                    userData.refresh(uid);
                   }
                   timer.reset();
-                  if (context.mounted) {
-                    Navigator.of(context).pop();
-                  }
+                  Navigator.of(context).pop();
                 },
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('Grow Another Tree', style: TextStyle(fontWeight: FontWeight.w700)),
